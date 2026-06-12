@@ -43,6 +43,7 @@
         .game-over-card { background: linear-gradient(135deg, #1a1f2e, #0f1222); border-radius: 48px; padding: 2rem; text-align: center; max-width: 450px; border: 2px solid #A855F7; }
         .final-score { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FDE047, #A855F7); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .status-text { margin-top: 20px; font-size: 0.7rem; text-align: center; color: #475569; }
+        .error-text { color: #EF4444; }
         @media (max-width: 900px) { .game-container { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -56,7 +57,7 @@
                 <p style="color: #94A3B8; margin-bottom: 20px;">Demuestra lo que aprendiste y compite globalmente</p>
                 <input type="text" id="playerName" placeholder="Ej: CiberGuardian07" maxlength="30">
                 <button id="startGameBtn">🚀 Comenzar Misión</button>
-                <p style="margin-top: 15px; font-size: 0.7rem; color: #475569;">Los puntajes se guardan en la nube</p>
+                <p style="margin-top: 15px; font-size: 0.7rem; color: #F59E0B;" id="connectionStatus">🔄 Conectando a Supabase...</p>
             </div>
         </div>
 
@@ -80,7 +81,7 @@
     <div class="ranking-panel">
         <div class="ranking-title">🏆 RANKING GLOBAL 🏆</div>
         <div id="rankingList"><div style="text-align:center; padding:20px;">Cargando...</div></div>
-        <div class="status-text" id="statusText">🔄 Conectando a Supabase...</div>
+        <div class="status-text" id="rankingStatus">Conectando...</div>
     </div>
 </div>
 
@@ -96,7 +97,7 @@
 <script>
     (function() {
         // ============================================
-        // CONFIGURACIÓN - SIN DECLARACIONES DUPLICADAS
+        // CONFIGURACIÓN
         // ============================================
         const SUPABASE_URL = 'https://kpywveceznobreogzjbg.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweXd2ZWNlem5vYnJlb2d6amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTM1ODksImV4cCI6MjA5NjA4OTU4OX0._QPk3rigfRIw3QYGtNktlm6XN6MS4z_PewfY1GJffW0';
@@ -171,33 +172,40 @@
         
         // Funciones Supabase
         async function obtenerOCrearJugador(nombre) {
-            const { data: existing, error } = await supabaseClient
-                .from('jugadores')
-                .select('*')
-                .eq('nombre', nombre)
-                .maybeSingle();
-            
-            if (error) {
-                console.error("Error búsqueda:", error);
-                return { success: false, error: error };
+            try {
+                // Primero buscar si existe
+                const { data: existing, error: searchError } = await supabaseClient
+                    .from('jugadores')
+                    .select('*')
+                    .eq('nombre', nombre)
+                    .maybeSingle();
+                
+                if (searchError) {
+                    console.error("Error búsqueda:", searchError);
+                    return { success: false, error: searchError };
+                }
+                
+                if (existing) {
+                    return { success: true, player: existing, isNew: false };
+                }
+                
+                // Si no existe, crear nuevo
+                const { data: newPlayer, error: insertError } = await supabaseClient
+                    .from('jugadores')
+                    .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
+                    .select()
+                    .single();
+                
+                if (insertError) {
+                    console.error("Error creación:", insertError);
+                    return { success: false, error: insertError };
+                }
+                
+                return { success: true, player: newPlayer, isNew: true };
+            } catch (e) {
+                console.error("Excepción:", e);
+                return { success: false, error: e };
             }
-            
-            if (existing) {
-                return { success: true, player: existing, isNew: false };
-            }
-            
-            const { data: newPlayer, error: insertError } = await supabaseClient
-                .from('jugadores')
-                .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
-                .select()
-                .single();
-            
-            if (insertError) {
-                console.error("Error creación:", insertError);
-                return { success: false, error: insertError };
-            }
-            
-            return { success: true, player: newPlayer, isNew: true };
         }
         
         async function obtenerMejorPuntaje(jugadorId) {
@@ -251,15 +259,18 @@
                 .limit(10);
             
             const rankingDiv = document.getElementById('rankingList');
+            const rankingStatus = document.getElementById('rankingStatus');
             
             if (error) {
                 console.error("Error ranking:", error);
-                rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Error cargando ranking</div>';
+                rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;" class="error-text">Error cargando ranking</div>';
+                rankingStatus.innerHTML = '❌ Error: ' + error.message.substring(0, 60);
                 return;
             }
             
             if (!data || data.length === 0) {
                 rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Sin jugadores aún. ¡Sé el primero!</div>';
+                rankingStatus.innerHTML = '📊 Esperando primeros jugadores...';
                 return;
             }
             
@@ -269,9 +280,10 @@
                     <div class="ranking-score">${j.puntaje_total} pts</div>
                 </div>
             `).join('');
+            rankingStatus.innerHTML = '✅ Ranking actualizado';
         }
         
-        // Lógica del juego
+        // Lógica del juego (igual que antes)
         function actualizarUI() {
             document.getElementById('scoreValue').textContent = gameState.puntaje;
             document.getElementById('correctCount').textContent = gameState.aciertos;
@@ -408,9 +420,17 @@
             if (!nombre) { alert("Ingresa un nombre"); return; }
             if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
             
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = "🔄 Verificando jugador...";
+            
             const result = await obtenerOCrearJugador(nombre);
             if (!result.success) {
-                alert("Error: " + (result.error?.message || "No se pudo conectar"));
+                let errorMsg = result.error?.message || "Error desconocido";
+                if (errorMsg.includes("row-level security policy")) {
+                    errorMsg = "Error de permisos en Supabase. Debes deshabilitar RLS en la tabla 'jugadores'.";
+                }
+                alert("Error: " + errorMsg);
+                statusDiv.innerHTML = "❌ Error de conexión. Revisa la consola.";
                 return;
             }
             
@@ -424,6 +444,7 @@
             
             iniciarNuevaPartida();
             cargarRanking();
+            statusDiv.innerHTML = "✅ Conectado a Supabase";
         }
         
         function cerrarSesion() {
@@ -435,12 +456,15 @@
         
         // Inicializar
         async function init() {
-            const statusDiv = document.getElementById('statusText');
+            const statusDiv = document.getElementById('connectionStatus');
             const { error } = await supabaseClient.from('jugadores').select('count', { count: 'exact', head: true });
             
             if (error) {
-                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 50)}`;
+                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 60)}`;
                 console.error("Conexión fallida:", error);
+                if (error.message.includes("row-level security")) {
+                    statusDiv.innerHTML = "⚠️ Necesitas deshabilitar RLS en Supabase (tabla jugadores)";
+                }
             } else {
                 statusDiv.innerHTML = '✅ Conectado a Supabase';
                 await cargarRanking();

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>🎓 MISIÓN ANTIMALWARE | Cybersecurity Game</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -50,7 +50,6 @@
 
 <div class="game-container">
     <div class="game-panel">
-        <!-- Pantalla de login -->
         <div id="loginSection">
             <div class="login-area">
                 <h2>🎮 Misión Antimalware</h2>
@@ -61,7 +60,6 @@
             </div>
         </div>
 
-        <!-- Pantalla de juego (oculta) -->
         <div id="gameContent" style="display:none;">
             <div class="user-info">
                 <span>👤 <strong id="displayName">---</strong></span>
@@ -97,12 +95,13 @@
 
 <script>
     // ============================================
-    // CONFIGURACIÓN
+    // CONFIGURACIÓN - CLAVE CORREGIDA
     // ============================================
     const SUPABASE_URL = 'https://kpywveceznobreogzjbg.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_8zH73yOsHqCRcjaF3JaWlA_sTl-Jd34';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweXd2ZWNlem5vYnJlb2d6amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTM1ODksImV4cCI6MjA5NjA4OTU4OX0._QPk3rigfRIw3QYGtNktlm6XN6MS4z_PewfY1GJffW0';
     
-    let supabase;
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
     let currentPlayer = null;
     
     // Estado del juego
@@ -131,9 +130,6 @@
         { id: 10, name: "RAT", icon: "🎮", desc: "Permite control remoto total del dispositivo.", chars: ["Control total remoto", "Acceso a cámara"], level: 3 }
     ];
     
-    // ============================================
-    // FUNCIONES DE PREGUNTA
-    // ============================================
     function obtenerPregunta(malware) {
         const preguntas = [
             {
@@ -172,65 +168,23 @@
         return array;
     }
     
-    // ============================================
-    // FUNCIONES DE SUPABASE
-    // ============================================
-    async function crearTablasSiNoExisten() {
-        // Intentar crear las tablas directamente desde JavaScript
-        // Nota: Esto requiere permisos especiales, pero lo intentamos
-        const sqlCrearJugadores = `
-            CREATE TABLE IF NOT EXISTS jugadores (
-                id SERIAL PRIMARY KEY,
-                nombre TEXT UNIQUE NOT NULL,
-                puntaje_total INTEGER DEFAULT 0,
-                partidas_jugadas INTEGER DEFAULT 0,
-                aciertos_totales INTEGER DEFAULT 0,
-                fecha_creacion TIMESTAMP DEFAULT NOW()
-            );
-        `;
-        
-        // Como no podemos ejecutar SQL directamente desde JS, mostramos instrucciones
-        console.log("⚠️ Las tablas deben crearse manualmente en Supabase SQL Editor");
-    }
-    
-    async function initSupabase() {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        // Probar conexión
-        const { error } = await supabase.from('jugadores').select('count', { count: 'exact', head: true });
-        
-        if (error) {
-            console.error("Error de conexión:", error);
-            document.getElementById('statusText').innerHTML = `❌ Error: ${error.message.substring(0, 80)}`;
-            
-            if (error.message.includes('relation') && error.message.includes('does not exist')) {
-                document.getElementById('statusText').innerHTML += '<br>📋 ¡Necesitas crear las tablas! Ejecuta el SQL en Supabase.';
-            }
-            return false;
-        }
-        
-        document.getElementById('statusText').innerHTML = '✅ Conectado a Supabase';
-        return true;
-    }
-    
+    // Funciones Supabase
     async function obtenerOCrearJugador(nombre) {
-        // Buscar jugador existente
-        const { data: existing, error: searchError } = await supabase
+        const { data: existing, error } = await supabase
             .from('jugadores')
             .select('*')
             .eq('nombre', nombre)
             .maybeSingle();
         
-        if (searchError && !searchError.message.includes('does not exist')) {
-            console.error("Error búsqueda:", searchError);
-            return { success: false, error: searchError };
+        if (error) {
+            console.error("Error búsqueda:", error);
+            return { success: false, error: error };
         }
         
         if (existing) {
             return { success: true, player: existing, isNew: false };
         }
         
-        // Crear nuevo jugador
         const { data: newPlayer, error: insertError } = await supabase
             .from('jugadores')
             .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
@@ -270,7 +224,6 @@
         
         if (error) console.error("Error guardando partida:", error);
         
-        // Actualizar totales
         const { data: existing } = await supabase
             .from('jugadores')
             .select('puntaje_total, partidas_jugadas, aciertos_totales')
@@ -311,9 +264,7 @@
         `).join('');
     }
     
-    // ============================================
-    // LÓGICA DEL JUEGO
-    // ============================================
+    // Lógica del juego
     function actualizarUI() {
         document.getElementById('scoreValue').textContent = gameState.puntaje;
         document.getElementById('correctCount').textContent = gameState.aciertos;
@@ -323,7 +274,6 @@
         if (healthPercent < 30) healthFill.style.background = "linear-gradient(90deg, #EF4444, #F97316)";
         else healthFill.style.background = "linear-gradient(90deg, #10B981, #06B6D4)";
         
-        // Calcular nivel
         let nivel = 1;
         if (gameState.puntaje >= 500) nivel = 3;
         else if (gameState.puntaje >= 200) nivel = 2;
@@ -334,7 +284,6 @@
     
     function cargarSiguienteMalware() {
         if (gameState.malwaresPendientes.length === 0) {
-            // Victoria!
             finalizarJuego(true);
             return;
         }
@@ -364,7 +313,6 @@
             <div id="feedbackArea" style="display:none;"></div>
         `;
         
-        // Agregar event listeners
         document.querySelectorAll('.option-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
@@ -392,7 +340,6 @@
             </div>`;
         }
         
-        // Marcar opciones visualmente
         document.querySelectorAll('.option-btn').forEach((btn, idx) => {
             btn.disabled = true;
             if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
@@ -448,9 +395,7 @@
         cargarSiguienteMalware();
     }
     
-    // ============================================
-    // EVENTOS Y LOGIN
-    // ============================================
+    // Eventos y login
     async function iniciarSesion() {
         const nombre = document.getElementById('playerName').value.trim();
         if (!nombre) { alert("Ingresa un nombre"); return; }
@@ -481,6 +426,21 @@
         document.getElementById('playerName').value = '';
     }
     
+    // Probar conexión al cargar
+    async function testConexion() {
+        const statusDiv = document.getElementById('statusText');
+        const { error } = await supabase.from('jugadores').select('count', { count: 'exact', head: true });
+        
+        if (error) {
+            statusDiv.innerHTML = `❌ Error: ${error.message.substring(0, 60)}`;
+            console.error("Conexión fallida:", error);
+        } else {
+            statusDiv.innerHTML = '✅ Conectado a Supabase';
+            console.log("Conexión exitosa!");
+            await cargarRanking();
+        }
+    }
+    
     // Event listeners
     document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
     document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
@@ -494,17 +454,8 @@
         if (e.key === 'Enter') iniciarSesion();
     });
     
-    // Inicializar
-    async function init() {
-        const connected = await initSupabase();
-        if (!connected) {
-            // Modo offline - mostrar mensaje pero permitir jugar sin ranking
-            console.log("Modo offline - el ranking no funcionará");
-        }
-        cargarRanking();
-    }
-    
-    init();
+    // Iniciar
+    testConexion();
 </script>
 </body>
 </html>

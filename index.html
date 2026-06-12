@@ -94,371 +94,374 @@
 </div>
 
 <script>
-    // ============================================
-    // CONFIGURACIÓN - CLAVE CORRECTA (funciona)
-    // ============================================
-    const SUPABASE_URL = 'https://kpywveceznobreogzjbg.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweXd2ZWNlem5vYnJlb2d6amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTM1ODksImV4cCI6MjA5NjA4OTU4OX0._QPk3rigfRIw3QYGtNktlm6XN6MS4z_PewfY1GJffW0';
-    
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    
-    let currentPlayer = null;
-    
-    // Estado del juego
-    let gameState = {
-        malwaresPendientes: [],
-        malwareActual: null,
-        preguntaActual: null,
-        respondido: false,
-        puntaje: 0,
-        vidas: 3,
-        aciertos: 0,
-        nivel: 1
-    };
-    
-    // Base de datos de malware
-    const MALWARE_DB = [
-        { id: 1, name: "VIRUS", icon: "🦠", desc: "Se adjunta a archivos limpios y se propaga al ejecutarlos.", chars: ["Se pega a otros archivos", "Necesita intervención humana"], level: 1 },
-        { id: 2, name: "TROYANO", icon: "🐴", desc: "Se disfraza de software legítimo para engañarte.", chars: ["Se disfraza de algo bueno", "Crea puertas traseras"], level: 1 },
-        { id: 3, name: "RANSOMWARE", icon: "💰", desc: "Secuestra tus archivos y pide rescate económico.", chars: ["Encripta archivos", "Pide rescate"], level: 2 },
-        { id: 4, name: "SPYWARE", icon: "👁️", desc: "Espía tus actividades sin que lo notes.", chars: ["Espía en secreto", "Roba contraseñas"], level: 1 },
-        { id: 5, name: "GUSANO", icon: "🐛", desc: "Se replica automáticamente por la red.", chars: ["Se propaga solo", "No necesita archivo"], level: 2 },
-        { id: 6, name: "KEYLOGGER", icon: "⌨️", desc: "Registra cada tecla que presionas.", chars: ["Graba tecleo", "Roba credenciales"], level: 2 },
-        { id: 7, name: "ROOTKIT", icon: "🎭", desc: "Se oculta en niveles profundos del sistema.", chars: ["Se esconde del antivirus", "Opera a nivel kernel"], level: 3 },
-        { id: 8, name: "ADWARE", icon: "📢", desc: "Muestra publicidad no deseada.", chars: ["Muestra anuncios", "Viene con software gratis"], level: 1 },
-        { id: 9, name: "BOTNET", icon: "🤖", desc: "Red de dispositivos infectados controlados remotamente.", chars: ["Dispositivos esclavos", "Usado para DDoS"], level: 3 },
-        { id: 10, name: "RAT", icon: "🎮", desc: "Permite control remoto total del dispositivo.", chars: ["Control total remoto", "Acceso a cámara"], level: 3 }
-    ];
-    
-    function obtenerPregunta(malware) {
-        const preguntas = [
-            {
-                texto: `¿Cuál es la principal característica del ${malware.name}?`,
-                opciones: [malware.chars[0], malware.chars[1], "Es fácil de eliminar", "Solo afecta a Mac"],
-                correcta: 0,
-                explicacion: malware.desc
-            },
-            {
-                texto: `¿Cómo se propaga típicamente el ${malware.name}?`,
-                opciones: ["Por correo electrónico", "Infectando archivos", "Por redes sociales", malware.id === 5 ? "Se replica solo por la red" : "Requiere que el usuario lo ejecute"],
-                correcta: malware.id === 5 ? 3 : 0,
-                explicacion: malware.desc
-            },
-            {
-                texto: `Si tu computadora tiene ${malware.name}, ¿qué señal notarías?`,
-                opciones: [
-                    malware.id === 3 ? "Tus archivos no se abren y piden rescate" : 
-                    (malware.id === 4 ? "Tu PC está más lenta y hay programas raros" : "Aparecen ventanas emergentes"),
-                    "La pantalla se ve más brillante",
-                    "El internet es más rápido",
-                    "Se instalan actualizaciones"
-                ],
-                correcta: 0,
-                explicacion: malware.desc
-            }
+    (function() {
+        // ============================================
+        // CONFIGURACIÓN - SIN DECLARACIONES DUPLICADAS
+        // ============================================
+        const SUPABASE_URL = 'https://kpywveceznobreogzjbg.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweXd2ZWNlem5vYnJlb2d6amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTM1ODksImV4cCI6MjA5NjA4OTU4OX0._QPk3rigfRIw3QYGtNktlm6XN6MS4z_PewfY1GJffW0';
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        let currentPlayer = null;
+        
+        // Estado del juego
+        let gameState = {
+            malwaresPendientes: [],
+            malwareActual: null,
+            preguntaActual: null,
+            respondido: false,
+            puntaje: 0,
+            vidas: 3,
+            aciertos: 0,
+            nivel: 1
+        };
+        
+        // Base de datos de malware
+        const MALWARE_DB = [
+            { id: 1, name: "VIRUS", icon: "🦠", desc: "Se adjunta a archivos limpios y se propaga al ejecutarlos.", chars: ["Se pega a otros archivos", "Necesita intervención humana"], level: 1 },
+            { id: 2, name: "TROYANO", icon: "🐴", desc: "Se disfraza de software legítimo para engañarte.", chars: ["Se disfraza de algo bueno", "Crea puertas traseras"], level: 1 },
+            { id: 3, name: "RANSOMWARE", icon: "💰", desc: "Secuestra tus archivos y pide rescate económico.", chars: ["Encripta archivos", "Pide rescate"], level: 2 },
+            { id: 4, name: "SPYWARE", icon: "👁️", desc: "Espía tus actividades sin que lo notes.", chars: ["Espía en secreto", "Roba contraseñas"], level: 1 },
+            { id: 5, name: "GUSANO", icon: "🐛", desc: "Se replica automáticamente por la red.", chars: ["Se propaga solo", "No necesita archivo"], level: 2 },
+            { id: 6, name: "KEYLOGGER", icon: "⌨️", desc: "Registra cada tecla que presionas.", chars: ["Graba tecleo", "Roba credenciales"], level: 2 },
+            { id: 7, name: "ROOTKIT", icon: "🎭", desc: "Se oculta en niveles profundos del sistema.", chars: ["Se esconde del antivirus", "Opera a nivel kernel"], level: 3 },
+            { id: 8, name: "ADWARE", icon: "📢", desc: "Muestra publicidad no deseada.", chars: ["Muestra anuncios", "Viene con software gratis"], level: 1 },
+            { id: 9, name: "BOTNET", icon: "🤖", desc: "Red de dispositivos infectados controlados remotamente.", chars: ["Dispositivos esclavos", "Usado para DDoS"], level: 3 },
+            { id: 10, name: "RAT", icon: "🎮", desc: "Permite control remoto total del dispositivo.", chars: ["Control total remoto", "Acceso a cámara"], level: 3 }
         ];
-        return preguntas[malware.id % preguntas.length];
-    }
-    
-    function mezclarArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
-    }
-    
-    // Funciones Supabase
-    async function obtenerOCrearJugador(nombre) {
-        const { data: existing, error } = await supabase
-            .from('jugadores')
-            .select('*')
-            .eq('nombre', nombre)
-            .maybeSingle();
         
-        if (error) {
-            console.error("Error búsqueda:", error);
-            return { success: false, error: error };
-        }
-        
-        if (existing) {
-            return { success: true, player: existing, isNew: false };
-        }
-        
-        const { data: newPlayer, error: insertError } = await supabase
-            .from('jugadores')
-            .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
-            .select()
-            .single();
-        
-        if (insertError) {
-            console.error("Error creación:", insertError);
-            return { success: false, error: insertError };
+        function obtenerPregunta(malware) {
+            const preguntas = [
+                {
+                    texto: `¿Cuál es la principal característica del ${malware.name}?`,
+                    opciones: [malware.chars[0], malware.chars[1], "Es fácil de eliminar", "Solo afecta a Mac"],
+                    correcta: 0,
+                    explicacion: malware.desc
+                },
+                {
+                    texto: `¿Cómo se propaga típicamente el ${malware.name}?`,
+                    opciones: ["Por correo electrónico", "Infectando archivos", "Por redes sociales", malware.id === 5 ? "Se replica solo por la red" : "Requiere que el usuario lo ejecute"],
+                    correcta: malware.id === 5 ? 3 : 0,
+                    explicacion: malware.desc
+                },
+                {
+                    texto: `Si tu computadora tiene ${malware.name}, ¿qué señal notarías?`,
+                    opciones: [
+                        malware.id === 3 ? "Tus archivos no se abren y piden rescate" : 
+                        (malware.id === 4 ? "Tu PC está más lenta y hay programas raros" : "Aparecen ventanas emergentes"),
+                        "La pantalla se ve más brillante",
+                        "El internet es más rápido",
+                        "Se instalan actualizaciones"
+                    ],
+                    correcta: 0,
+                    explicacion: malware.desc
+                }
+            ];
+            return preguntas[malware.id % preguntas.length];
         }
         
-        return { success: true, player: newPlayer, isNew: true };
-    }
-    
-    async function obtenerMejorPuntaje(jugadorId) {
-        const { data, error } = await supabase
-            .from('partidas')
-            .select('puntaje')
-            .eq('jugador_id', jugadorId)
-            .order('puntaje', { ascending: false })
-            .limit(1);
+        function mezclarArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
         
-        if (error || !data || data.length === 0) return 0;
-        return data[0].puntaje;
-    }
-    
-    async function guardarPartida(jugadorId, puntaje, nivel, correctas, incorrectas) {
-        const { error } = await supabase
-            .from('partidas')
-            .insert({
-                jugador_id: jugadorId,
-                puntaje: puntaje,
-                nivel_alcanzado: nivel,
-                respuestas_correctas: correctas,
-                respuestas_incorrectas: incorrectas
-            });
-        
-        if (error) console.error("Error guardando partida:", error);
-        
-        const { data: existing } = await supabase
-            .from('jugadores')
-            .select('puntaje_total, partidas_jugadas, aciertos_totales')
-            .eq('id', jugadorId)
-            .single();
-        
-        if (existing) {
-            await supabase
+        // Funciones Supabase
+        async function obtenerOCrearJugador(nombre) {
+            const { data: existing, error } = await supabaseClient
                 .from('jugadores')
-                .update({
-                    puntaje_total: (existing.puntaje_total || 0) + puntaje,
-                    partidas_jugadas: (existing.partidas_jugadas || 0) + 1,
-                    aciertos_totales: (existing.aciertos_totales || 0) + correctas
-                })
-                .eq('id', jugadorId);
-        }
-    }
-    
-    async function cargarRanking() {
-        const { data, error } = await supabase
-            .from('jugadores')
-            .select('nombre, puntaje_total')
-            .order('puntaje_total', { ascending: false })
-            .limit(10);
-        
-        const rankingDiv = document.getElementById('rankingList');
-        
-        if (error) {
-            console.error("Error ranking:", error);
-            rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Error cargando ranking</div>';
-            return;
-        }
-        
-        if (!data || data.length === 0) {
-            rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Sin jugadores aún. ¡Sé el primero!</div>';
-            return;
+                .select('*')
+                .eq('nombre', nombre)
+                .maybeSingle();
+            
+            if (error) {
+                console.error("Error búsqueda:", error);
+                return { success: false, error: error };
+            }
+            
+            if (existing) {
+                return { success: true, player: existing, isNew: false };
+            }
+            
+            const { data: newPlayer, error: insertError } = await supabaseClient
+                .from('jugadores')
+                .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
+                .select()
+                .single();
+            
+            if (insertError) {
+                console.error("Error creación:", insertError);
+                return { success: false, error: insertError };
+            }
+            
+            return { success: true, player: newPlayer, isNew: true };
         }
         
-        rankingDiv.innerHTML = data.map((j, idx) => `
-            <div class="ranking-item">
-                <div class="ranking-name">${idx === 0 ? '🏆' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '📌'} ${j.nombre.substring(0, 20)}</div>
-                <div class="ranking-score">${j.puntaje_total} pts</div>
-            </div>
-        `).join('');
-    }
-    
-    // Lógica del juego
-    function actualizarUI() {
-        document.getElementById('scoreValue').textContent = gameState.puntaje;
-        document.getElementById('correctCount').textContent = gameState.aciertos;
-        const healthPercent = (gameState.vidas / 3) * 100;
-        const healthFill = document.getElementById('healthFill');
-        healthFill.style.width = `${healthPercent}%`;
-        if (healthPercent < 30) healthFill.style.background = "linear-gradient(90deg, #EF4444, #F97316)";
-        else healthFill.style.background = "linear-gradient(90deg, #10B981, #06B6D4)";
-        
-        let nivel = 1;
-        if (gameState.puntaje >= 500) nivel = 3;
-        else if (gameState.puntaje >= 200) nivel = 2;
-        gameState.nivel = nivel;
-        const niveles = {1: "MALWARE BÁSICO", 2: "MALWARE PELIGROSO", 3: "AMENAZAS AVANZADAS"};
-        document.getElementById('levelText').innerHTML = `🎯 NIVEL ${nivel}: ${niveles[nivel]}`;
-    }
-    
-    function cargarSiguienteMalware() {
-        if (gameState.malwaresPendientes.length === 0) {
-            finalizarJuego(true);
-            return;
+        async function obtenerMejorPuntaje(jugadorId) {
+            const { data, error } = await supabaseClient
+                .from('partidas')
+                .select('puntaje')
+                .eq('jugador_id', jugadorId)
+                .order('puntaje', { ascending: false })
+                .limit(1);
+            
+            if (error || !data || data.length === 0) return 0;
+            return data[0].puntaje;
         }
         
-        gameState.malwareActual = gameState.malwaresPendientes.shift();
-        gameState.preguntaActual = obtenerPregunta(gameState.malwareActual);
-        gameState.respondido = false;
+        async function guardarPartida(jugadorId, puntaje, nivel, correctas, incorrectas) {
+            const { error } = await supabaseClient
+                .from('partidas')
+                .insert({
+                    jugador_id: jugadorId,
+                    puntaje: puntaje,
+                    nivel_alcanzado: nivel,
+                    respuestas_correctas: correctas,
+                    respuestas_incorrectas: incorrectas
+                });
+            
+            if (error) console.error("Error guardando partida:", error);
+            
+            const { data: existing } = await supabaseClient
+                .from('jugadores')
+                .select('puntaje_total, partidas_jugadas, aciertos_totales')
+                .eq('id', jugadorId)
+                .single();
+            
+            if (existing) {
+                await supabaseClient
+                    .from('jugadores')
+                    .update({
+                        puntaje_total: (existing.puntaje_total || 0) + puntaje,
+                        partidas_jugadas: (existing.partidas_jugadas || 0) + 1,
+                        aciertos_totales: (existing.aciertos_totales || 0) + correctas
+                    })
+                    .eq('id', jugadorId);
+            }
+        }
         
-        renderizarPregunta();
-        document.getElementById('nextBtn').disabled = true;
-    }
-    
-    function renderizarPregunta() {
-        const m = gameState.malwareActual;
-        const q = gameState.preguntaActual;
+        async function cargarRanking() {
+            const { data, error } = await supabaseClient
+                .from('jugadores')
+                .select('nombre, puntaje_total')
+                .order('puntaje_total', { ascending: false })
+                .limit(10);
+            
+            const rankingDiv = document.getElementById('rankingList');
+            
+            if (error) {
+                console.error("Error ranking:", error);
+                rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Error cargando ranking</div>';
+                return;
+            }
+            
+            if (!data || data.length === 0) {
+                rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Sin jugadores aún. ¡Sé el primero!</div>';
+                return;
+            }
+            
+            rankingDiv.innerHTML = data.map((j, idx) => `
+                <div class="ranking-item">
+                    <div class="ranking-name">${idx === 0 ? '🏆' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '📌'} ${j.nombre.substring(0, 20)}</div>
+                    <div class="ranking-score">${j.puntaje_total} pts</div>
+                </div>
+            `).join('');
+        }
         
-        document.getElementById('challengeArea').innerHTML = `
-            <div class="malware-card">
-                <div class="malware-icon">${m.icon}</div>
-                <div class="malware-name">${m.name}</div>
-                <div class="malware-desc">${m.desc}</div>
-            </div>
-            <div class="question-text">❓ ${q.texto}</div>
-            <div class="options-grid" id="optionsGrid">
-                ${q.opciones.map((opt, idx) => `<button class="option-btn" data-idx="${idx}">${String.fromCharCode(65+idx)}. ${opt}</button>`).join('')}
-            </div>
-            <div id="feedbackArea" style="display:none;"></div>
-        `;
+        // Lógica del juego
+        function actualizarUI() {
+            document.getElementById('scoreValue').textContent = gameState.puntaje;
+            document.getElementById('correctCount').textContent = gameState.aciertos;
+            const healthPercent = (gameState.vidas / 3) * 100;
+            const healthFill = document.getElementById('healthFill');
+            healthFill.style.width = `${healthPercent}%`;
+            if (healthPercent < 30) healthFill.style.background = "linear-gradient(90deg, #EF4444, #F97316)";
+            else healthFill.style.background = "linear-gradient(90deg, #10B981, #06B6D4)";
+            
+            let nivel = 1;
+            if (gameState.puntaje >= 500) nivel = 3;
+            else if (gameState.puntaje >= 200) nivel = 2;
+            gameState.nivel = nivel;
+            const niveles = {1: "MALWARE BÁSICO", 2: "MALWARE PELIGROSO", 3: "AMENAZAS AVANZADAS"};
+            document.getElementById('levelText').innerHTML = `🎯 NIVEL ${nivel}: ${niveles[nivel]}`;
+        }
         
-        document.querySelectorAll('.option-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
+        function cargarSiguienteMalware() {
+            if (gameState.malwaresPendientes.length === 0) {
+                finalizarJuego(true);
+                return;
+            }
+            
+            gameState.malwareActual = gameState.malwaresPendientes.shift();
+            gameState.preguntaActual = obtenerPregunta(gameState.malwareActual);
+            gameState.respondido = false;
+            
+            renderizarPregunta();
+            document.getElementById('nextBtn').disabled = true;
+        }
+        
+        function renderizarPregunta() {
+            const m = gameState.malwareActual;
+            const q = gameState.preguntaActual;
+            
+            document.getElementById('challengeArea').innerHTML = `
+                <div class="malware-card">
+                    <div class="malware-icon">${m.icon}</div>
+                    <div class="malware-name">${m.name}</div>
+                    <div class="malware-desc">${m.desc}</div>
+                </div>
+                <div class="question-text">❓ ${q.texto}</div>
+                <div class="options-grid" id="optionsGrid">
+                    ${q.opciones.map((opt, idx) => `<button class="option-btn" data-idx="${idx}">${String.fromCharCode(65+idx)}. ${opt}</button>`).join('')}
+                </div>
+                <div id="feedbackArea" style="display:none;"></div>
+            `;
+            
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
+                });
             });
-        });
-    }
-    
-    function procesarRespuesta(seleccion) {
-        gameState.respondido = true;
-        const esCorrecta = (seleccion === gameState.preguntaActual.correcta);
-        const feedbackDiv = document.getElementById('feedbackArea');
-        feedbackDiv.style.display = 'block';
-        
-        if (esCorrecta) {
-            const puntos = 10 * gameState.malwareActual.level;
-            gameState.puntaje += puntos;
-            gameState.aciertos++;
-            feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #10B981; background:rgba(16,185,129,0.1); border-radius:16px;">
-                ✅ <strong>¡CORRECTO!</strong> +${puntos} puntos<br>📚 ${gameState.preguntaActual.explicacion}
-            </div>`;
-        } else {
-            gameState.vidas--;
-            feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #EF4444; background:rgba(239,68,68,0.1); border-radius:16px;">
-                ❌ <strong>INCORRECTO</strong> -1 vida<br>📚 Respuesta correcta: ${gameState.preguntaActual.opciones[gameState.preguntaActual.correcta]}<br>💡 ${gameState.malwareActual.desc}
-            </div>`;
         }
         
-        document.querySelectorAll('.option-btn').forEach((btn, idx) => {
-            btn.disabled = true;
-            if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
-            if (idx === seleccion && idx !== gameState.preguntaActual.correcta) btn.classList.add('incorrect');
-        });
-        
-        actualizarUI();
-        
-        if (gameState.vidas <= 0) {
-            finalizarJuego(false);
-        } else {
-            document.getElementById('nextBtn').disabled = false;
+        function procesarRespuesta(seleccion) {
+            gameState.respondido = true;
+            const esCorrecta = (seleccion === gameState.preguntaActual.correcta);
+            const feedbackDiv = document.getElementById('feedbackArea');
+            feedbackDiv.style.display = 'block';
+            
+            if (esCorrecta) {
+                const puntos = 10 * gameState.malwareActual.level;
+                gameState.puntaje += puntos;
+                gameState.aciertos++;
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #10B981; background:rgba(16,185,129,0.1); border-radius:16px;">
+                    ✅ <strong>¡CORRECTO!</strong> +${puntos} puntos<br>📚 ${gameState.preguntaActual.explicacion}
+                </div>`;
+            } else {
+                gameState.vidas--;
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #EF4444; background:rgba(239,68,68,0.1); border-radius:16px;">
+                    ❌ <strong>INCORRECTO</strong> -1 vida<br>📚 Respuesta correcta: ${gameState.preguntaActual.opciones[gameState.preguntaActual.correcta]}<br>💡 ${gameState.malwareActual.desc}
+                </div>`;
+            }
+            
+            document.querySelectorAll('.option-btn').forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
+                if (idx === seleccion && idx !== gameState.preguntaActual.correcta) btn.classList.add('incorrect');
+            });
+            
+            actualizarUI();
+            
+            if (gameState.vidas <= 0) {
+                finalizarJuego(false);
+            } else {
+                document.getElementById('nextBtn').disabled = false;
+            }
         }
-    }
-    
-    async function finalizarJuego(victoria) {
-        if (currentPlayer) {
-            const incorrectas = (gameState.aciertos + (3 - gameState.vidas)) - gameState.aciertos;
-            await guardarPartida(currentPlayer.id, gameState.puntaje, gameState.nivel, gameState.aciertos, incorrectas);
+        
+        async function finalizarJuego(victoria) {
+            if (currentPlayer) {
+                const incorrectas = (gameState.aciertos + (3 - gameState.vidas)) - gameState.aciertos;
+                await guardarPartida(currentPlayer.id, gameState.puntaje, gameState.nivel, gameState.aciertos, incorrectas);
+                const best = await obtenerMejorPuntaje(currentPlayer.id);
+                document.getElementById('personalBest').textContent = best;
+                await cargarRanking();
+            }
+            
+            const finalScore = document.getElementById('finalScoreDisplay');
+            const messageDisplay = document.getElementById('messageDisplay');
+            finalScore.textContent = gameState.puntaje;
+            
+            let mensaje = "";
+            if (victoria) {
+                mensaje = "🎉 ¡MISIÓN COMPLETADA! Has identificado todos los malwares. ¡Eres un guardián de la ciberseguridad! 🎉";
+            } else if (gameState.puntaje >= 300) {
+                mensaje = "🏆 ¡ASOMBROSO! Eres un experto en malware. 🏆";
+            } else if (gameState.puntaje >= 150) {
+                mensaje = "🛡️ ¡Muy bien! Repasa los tipos de nivel 2 y 3.";
+            } else {
+                mensaje = "💪 No te rindas. Estudia los tipos de malware y vuélvelo a intentar.";
+            }
+            messageDisplay.textContent = mensaje;
+            document.getElementById('gameOverlay').classList.add('show');
+        }
+        
+        function iniciarNuevaPartida() {
+            gameState.malwaresPendientes = mezclarArray([...MALWARE_DB]);
+            gameState.puntaje = 0;
+            gameState.vidas = 3;
+            gameState.aciertos = 0;
+            gameState.respondido = false;
+            gameState.nivel = 1;
+            
+            actualizarUI();
+            document.getElementById('gameOverlay').classList.remove('show');
+            cargarSiguienteMalware();
+        }
+        
+        // Eventos y login
+        async function iniciarSesion() {
+            const nombre = document.getElementById('playerName').value.trim();
+            if (!nombre) { alert("Ingresa un nombre"); return; }
+            if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
+            
+            const result = await obtenerOCrearJugador(nombre);
+            if (!result.success) {
+                alert("Error: " + (result.error?.message || "No se pudo conectar"));
+                return;
+            }
+            
+            currentPlayer = result.player;
+            document.getElementById('displayName').textContent = currentPlayer.nombre;
             const best = await obtenerMejorPuntaje(currentPlayer.id);
             document.getElementById('personalBest').textContent = best;
-            await cargarRanking();
+            
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('gameContent').style.display = 'block';
+            
+            iniciarNuevaPartida();
+            cargarRanking();
         }
         
-        const finalScore = document.getElementById('finalScoreDisplay');
-        const messageDisplay = document.getElementById('messageDisplay');
-        finalScore.textContent = gameState.puntaje;
-        
-        let mensaje = "";
-        if (victoria) {
-            mensaje = "🎉 ¡MISIÓN COMPLETADA! Has identificado todos los malwares. ¡Eres un guardián de la ciberseguridad! 🎉";
-        } else if (gameState.puntaje >= 300) {
-            mensaje = "🏆 ¡ASOMBROSO! Eres un experto en malware. 🏆";
-        } else if (gameState.puntaje >= 150) {
-            mensaje = "🛡️ ¡Muy bien! Repasa los tipos de nivel 2 y 3.";
-        } else {
-            mensaje = "💪 No te rindas. Estudia los tipos de malware y vuélvelo a intentar.";
-        }
-        messageDisplay.textContent = mensaje;
-        document.getElementById('gameOverlay').classList.add('show');
-    }
-    
-    function iniciarNuevaPartida() {
-        gameState.malwaresPendientes = mezclarArray([...MALWARE_DB]);
-        gameState.puntaje = 0;
-        gameState.vidas = 3;
-        gameState.aciertos = 0;
-        gameState.respondido = false;
-        gameState.nivel = 1;
-        
-        actualizarUI();
-        document.getElementById('gameOverlay').classList.remove('show');
-        cargarSiguienteMalware();
-    }
-    
-    // Eventos y login
-    async function iniciarSesion() {
-        const nombre = document.getElementById('playerName').value.trim();
-        if (!nombre) { alert("Ingresa un nombre"); return; }
-        if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
-        
-        const result = await obtenerOCrearJugador(nombre);
-        if (!result.success) {
-            alert("Error: " + (result.error?.message || "No se pudo conectar"));
-            return;
+        function cerrarSesion() {
+            currentPlayer = null;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('gameContent').style.display = 'none';
+            document.getElementById('playerName').value = '';
         }
         
-        currentPlayer = result.player;
-        document.getElementById('displayName').textContent = currentPlayer.nombre;
-        const best = await obtenerMejorPuntaje(currentPlayer.id);
-        document.getElementById('personalBest').textContent = best;
-        
-        document.getElementById('loginSection').style.display = 'none';
-        document.getElementById('gameContent').style.display = 'block';
-        
-        iniciarNuevaPartida();
-        cargarRanking();
-    }
-    
-    function cerrarSesion() {
-        currentPlayer = null;
-        document.getElementById('loginSection').style.display = 'block';
-        document.getElementById('gameContent').style.display = 'none';
-        document.getElementById('playerName').value = '';
-    }
-    
-    // Probar conexión y cargar ranking al inicio
-    async function init() {
-        const statusDiv = document.getElementById('statusText');
-        const { error } = await supabase.from('jugadores').select('count', { count: 'exact', head: true });
-        
-        if (error) {
-            statusDiv.innerHTML = `⚠️ Modo local: ${error.message.substring(0, 50)}`;
-        } else {
-            statusDiv.innerHTML = '✅ Conectado a Supabase';
-            await cargarRanking();
+        // Inicializar
+        async function init() {
+            const statusDiv = document.getElementById('statusText');
+            const { error } = await supabaseClient.from('jugadores').select('count', { count: 'exact', head: true });
+            
+            if (error) {
+                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 50)}`;
+                console.error("Conexión fallida:", error);
+            } else {
+                statusDiv.innerHTML = '✅ Conectado a Supabase';
+                await cargarRanking();
+            }
         }
-    }
-    
-    // Event listeners
-    document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
-    document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
-    document.getElementById('nextBtn').addEventListener('click', () => {
-        if (gameState.respondido && gameState.vidas > 0) cargarSiguienteMalware();
-    });
-    document.getElementById('playAgainBtn').addEventListener('click', () => {
-        iniciarNuevaPartida();
-    });
-    document.getElementById('playerName').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') iniciarSesion();
-    });
-    
-    init();
+        
+        // Event listeners
+        document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
+        document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (gameState.respondido && gameState.vidas > 0) cargarSiguienteMalware();
+        });
+        document.getElementById('playAgainBtn').addEventListener('click', () => {
+            iniciarNuevaPartida();
+        });
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') iniciarSesion();
+        });
+        
+        init();
+    })();
 </script>
 </body>
 </html>

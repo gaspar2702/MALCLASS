@@ -30,20 +30,25 @@
         .malware-card { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 25px; }
         .malware-icon { font-size: 5rem; background: rgba(239,68,68,0.15); width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; border-radius: 60px; border: 2px solid #EF4444; }
         .malware-name { font-size: 1.8rem; font-weight: 800; color: #EF4444; }
-        .malware-desc { font-size: 0.8rem; color: #94A3B8; }
+        .malware-desc { font-size: 0.8rem; color: #94A3B8; max-width: 400px; text-align: center; }
         .question-text { font-size: 1.2rem; font-weight: 600; color: #FDE047; text-align: center; margin: 20px 0; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 20px; }
-        .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin: 20px 0; }
-        .option-btn { background: #1E293B; border: 2px solid #334155; border-radius: 60px; padding: 12px 18px; font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: left; color: #E2E8F0; }
-        .option-btn:hover:not(:disabled) { background: #2D3A5E; border-color: #A855F7; }
+        .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 20px 0; }
+        .option-btn { background: #1E293B; border: 2px solid #334155; border-radius: 60px; padding: 12px 18px; font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: left; color: #E2E8F0; transition: all 0.2s; }
+        .option-btn:hover:not(:disabled) { background: #2D3A5E; border-color: #A855F7; transform: scale(1.01); }
         .option-btn.correct { background: #10B981; border-color: #10B981; }
         .option-btn.incorrect { background: #EF4444; border-color: #EF4444; }
         .next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .game-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 1000; visibility: hidden; opacity: 0; transition: 0.3s; }
         .game-overlay.show { visibility: visible; opacity: 1; }
-        .game-over-card { background: linear-gradient(135deg, #1a1f2e, #0f1222); border-radius: 48px; padding: 2rem; text-align: center; max-width: 450px; border: 2px solid #A855F7; }
+        .game-over-card { background: linear-gradient(135deg, #1a1f2e, #0f1222); border-radius: 48px; padding: 2rem; text-align: center; max-width: 450px; border: 2px solid #A855F7; animation: bounceIn 0.5s ease; }
+        @keyframes bounceIn { 0% { transform: scale(0.8); opacity: 0; } 80% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
         .final-score { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FDE047, #A855F7); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .status-text { margin-top: 20px; font-size: 0.7rem; text-align: center; color: #475569; }
         .error-text { color: #EF4444; }
+        .level-progress { display: flex; justify-content: center; gap: 8px; margin: 15px 0; }
+        .level-dot { width: 30px; height: 30px; border-radius: 30px; background: #1E293B; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; }
+        .level-dot.active { background: #7B2CBF; border-color: #A855F7; color: white; }
+        .level-dot.completed { background: #10B981; border-color: #10B981; color: white; }
         @media (max-width: 900px) { .game-container { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -67,12 +72,17 @@
                 <span>🏆 Mejor puntaje: <strong id="personalBest">0</strong></span>
                 <button id="logoutBtn" class="btn-logout">Salir</button>
             </div>
+            
+            <!-- Indicador de niveles -->
+            <div class="level-progress" id="levelProgress"></div>
+            
             <div class="stats">
                 <div class="stat"><span>🎯 PUNTOS:</span> <span id="scoreValue">0</span></div>
                 <div class="stat"><span>❤️ VIDAS:</span><div class="health-bar"><div class="health-fill" id="healthFill"></div></div></div>
                 <div class="stat"><span>✅ ACIERTOS:</span> <span id="correctCount">0</span></div>
+                <div class="stat"><span>⭐ MULTIPLICADOR:</span> <span id="multiplier">1x</span></div>
             </div>
-            <div class="level-badge"><span id="levelText">🎯 NIVEL 1: MALWARE BÁSICO</span></div>
+            <div class="level-badge"><span id="levelText">🎯 NIVEL 1: RECLUTA</span></div>
             <div id="challengeArea"></div>
             <button class="next-btn" id="nextBtn" disabled>▶ SIGUIENTE MALWARE</button>
         </div>
@@ -87,7 +97,7 @@
 
 <div class="game-overlay" id="gameOverlay">
     <div class="game-over-card">
-        <h2>💀 MISIÓN FALLIDA 💀</h2>
+        <h2 id="gameOverTitle">💀 MISIÓN FALLIDA 💀</h2>
         <div class="final-score" id="finalScoreDisplay">0</div>
         <p id="messageDisplay"></p>
         <button class="next-btn" id="playAgainBtn">🎮 JUGAR DE NUEVO</button>
@@ -105,6 +115,130 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         let currentPlayer = null;
+        let currentMultiplier = 1;
+        let correctStreak = 0;
+        
+        // ============================================
+        // NUEVA BASE DE DATOS DE MALWARE (15 tipos, 5 niveles)
+        // ============================================
+        const MALWARE_DB = [
+            // NIVEL 1: Malware Básico (fáciles)
+            { id: 1, name: "VIRUS", icon: "🦠", desc: "Programa que se replica insertando copias de sí mismo en otros programas o archivos ejecutables.", category: "Infección", level: 1, points: 10 },
+            { id: 2, name: "TROYANO", icon: "🐴", desc: "Software malicioso que se presenta como legítimo para engañar a la víctima.", category: "Disfraz", level: 1, points: 10 },
+            { id: 3, name: "ADWARE", icon: "📢", desc: "Programa que muestra publicidad no deseada, a menudo empaquetado con software gratuito.", category: "Publicidad", level: 1, points: 10 },
+            { id: 4, name: "SPYWARE", icon: "👁️", desc: "Recolecta información de la víctima sin su consentimiento.", category: "Espionaje", level: 1, points: 10 },
+            
+            // NIVEL 2: Malware Intermedio
+            { id: 5, name: "GUSANO", icon: "🐛", desc: "Se propaga automáticamente por redes sin necesidad de intervención humana.", category: "Propagación", level: 2, points: 20 },
+            { id: 6, name: "KEYLOGGER", icon: "⌨️", desc: "Registra cada tecla que el usuario presiona para robar contraseñas.", category: "Espionaje", level: 2, points: 20 },
+            { id: 7, name: "RANSOMWARE", icon: "💰", desc: "Secuestra archivos encriptándolos y exige rescate económico.", category: "Extorsión", level: 2, points: 20 },
+            { id: 8, name: "BOTNET", icon: "🤖", desc: "Red de dispositivos infectados controlados remotamente para ataques coordinados.", category: "Control Remoto", level: 2, points: 20 },
+            
+            // NIVEL 3: Malware Avanzado
+            { id: 9, name: "ROOTKIT", icon: "🎭", desc: "Se oculta en el núcleo del sistema operativo para evadir detección.", category: "Ocultamiento", level: 3, points: 30 },
+            { id: 10, name: "RAT", icon: "🎮", desc: "Remote Access Trojan - Permite control remoto total del dispositivo.", category: "Control Total", level: 3, points: 30 },
+            { id: 11, name: "LOADER", icon: "📦", desc: "Dropper que descarga e instala otros malware en el sistema.", category: "Carga", level: 3, points: 30 },
+            { id: 12, name: "WIPER", icon: "💣", desc: "Destruye o borra datos irreversiblemente, no busca rescate.", category: "Destrucción", level: 3, points: 30 },
+            
+            // NIVEL 4: Malware Experto
+            { id: 13, name: "APT", icon: "👑", desc: "Advanced Persistent Threat - Ataques dirigidos y sostenidos por actores estatales.", category: "Amenaza Persistente", level: 4, points: 50 },
+            { id: 14, name: "FILELESS", icon: "🕳️", desc: "Opera en memoria sin dejar archivos en disco, difícil de detectar.", category: "Sin Archivos", level: 4, points: 50 },
+            { id: 15, name: "CRYPTOJACKER", icon: "⛏️", desc: "Utiliza recursos de la víctima para minar criptomonedas.", category: "Minería", level: 4, points: 50 },
+            
+            // NIVEL 5: Malware Legendario
+            { id: 16, name: "ZERO-DAY", icon: "🔥", desc: "Explota vulnerabilidades desconocidas para el fabricante.", category: "Vulnerabilidad", level: 5, points: 100 },
+            { id: 17, name: "POLYMORPHIC", icon: "🦎", desc: "Cambia su código en cada infección para evadir firmas antivirus.", category: "Mutación", level: 5, points: 100 },
+            { id: 18, name: "METAMORPHIC", icon: "🦋", desc: "Reescribe completamente su código en cada infección.", category: "Mutación Avanzada", level: 5, points: 100 }
+        ];
+        
+        // ============================================
+        // BANCO DE PREGUNTAS ÚNICAS (evita repeticiones)
+        // ============================================
+        const PREGUNTAS_POR_MALWARE = {
+            // Virus
+            1: [
+                { texto: "¿Qué diferencia principal hay entre un virus y un gusano?", opciones: ["El virus necesita intervención humana para propagarse", "El virus es más peligroso", "El virus solo afecta Windows", "El virus no se puede eliminar"], correcta: 0, explicacion: "El virus requiere que un usuario ejecute un archivo infectado, mientras que el gusano se propaga automáticamente." },
+                { texto: "¿Qué tipo de archivos suelen infectar los virus?", opciones: ["Archivos ejecutables (.exe, .com)", "Archivos de texto (.txt)", "Archivos de música (.mp3)", "Archivos de video (.mp4)"], correcta: 0, explicacion: "Los virus tradicionalmente infectan archivos ejecutables para propagarse cuando se ejecutan." }
+            ],
+            // Troyano
+            2: [
+                { texto: "¿Por qué se llama 'Troyano' a este tipo de malware?", opciones: ["Por el caballo de Troya de la mitología griega", "Por la ciudad de Troya", "Por un antivirus famoso", "Por un hacker llamado Troy"], correcta: 0, explicacion: "Como el caballo de Troya, este malware se disfraza de algo bueno para engañar." },
+                { texto: "¿Qué suele hacer un troyano una vez instalado?", opciones: ["Abre una puerta trasera (backdoor)", "Se propaga automáticamente", "Muestra publicidad", "Encripta archivos"], correcta: 0, explicacion: "Los troyanos comúnmente crean backdoors para acceso remoto." }
+            ],
+            // Adware
+            3: [
+                { texto: "¿Cuál es el objetivo principal del adware?", opciones: ["Generar ingresos por publicidad", "Robar contraseñas", "Destruir archivos", "Secuestrar el navegador"], correcta: 0, explicacion: "El adware genera dinero mostrando anuncios no deseados al usuario." }
+            ],
+            // Spyware
+            4: [
+                { texto: "¿Qué información suele robar el spyware?", opciones: ["Contraseñas y hábitos de navegación", "Solo la ubicación", "Archivos del sistema", "El historial de llamadas"], correcta: 0, explicacion: "El spyware espía actividades y roba información personal." }
+            ],
+            // Gusano
+            5: [
+                { texto: "¿Cómo se propaga un gusano?", opciones: ["Automáticamente por la red", "Necesita que el usuario abra un archivo", "Solo por USB", "Por correo físico"], correcta: 0, explicacion: "Los gusanos se propagan solos usando vulnerabilidades de red." },
+                { texto: "¿Qué famoso gusano causó daños masivos en 2000?", opciones: ["ILOVEYOU", "Melissa", "Code Red", "Stuxnet"], correcta: 0, explicacion: "ILOVEYOU (2000) afectó millones de computadoras mundialmente." }
+            ],
+            // Keylogger
+            6: [
+                { texto: "¿Qué hace específicamente un keylogger?", opciones: ["Registra las teclas presionadas", "Toma capturas de pantalla", "Graba el micrófono", "Encripta archivos"], correcta: 0, explicacion: "Keylogger registra cada tecla para robar contraseñas." }
+            ],
+            // Ransomware
+            7: [
+                { texto: "¿Qué debes hacer si te infectas con ransomware?", opciones: ["NO pagar el rescate y restaurar desde backup", "Pagar inmediatamente", "Apagar el equipo y esperar", "Formatear sin respaldo"], correcta: 0, explicacion: "Nunca se debe pagar; lo mejor es restaurar desde una copia de seguridad." },
+                { texto: "¿Qué famoso ransomware atacó el sistema de salud británico en 2017?", opciones: ["WannaCry", "Petya", "Locky", "CryptoLocker"], correcta: 0, explicacion: "WannaCry afectó hospitales en todo el mundo en 2017." }
+            ],
+            // Botnet
+            8: [
+                { texto: "¿Para qué se usan comúnmente las botnets?", opciones: ["Ataques DDoS", "Minería de Bitcoin", "Phishing", "Ransomware"], correcta: 0, explicacion: "Las botnets se usan para ataques DDoS coordinados." }
+            ],
+            // Rootkit
+            9: [
+                { texto: "¿Dónde se esconde típicamente un rootkit?", opciones: ["En el kernel del sistema operativo", "En archivos de texto", "En el escritorio", "En la papelera"], correcta: 0, explicacion: "Los rootkit operan a nivel kernel, haciéndolos difíciles de detectar." }
+            ],
+            // RAT
+            10: [
+                { texto: "¿Qué puede hacer un atacante con un RAT?", opciones: ["Control remoto total del dispositivo", "Solo ver archivos", "Solo apagar la PC", "Solo robar contraseñas"], correcta: 0, explicacion: "RAT permite control total: cámara, micrófono, archivos, etc." }
+            ],
+            // Loader
+            11: [
+                { texto: "¿Cuál es la función principal de un loader?", opciones: ["Descargar e instalar otros malware", "Eliminar archivos", "Mostrar publicidad", "Robar contraseñas"], correcta: 0, explicacion: "Loader es un descargador que trae más malware al sistema." }
+            ],
+            // Wiper
+            12: [
+                { texto: "¿En qué se diferencia un wiper del ransomware?", opciones: ["Destruye datos sin pedir rescate", "Pide menos dinero", "Es más fácil de eliminar", "Solo afecta empresas"], correcta: 0, explicacion: "Wiper borra datos irreversiblemente; no hay rescate posible." }
+            ],
+            // APT
+            13: [
+                { texto: "¿Quiénes suelen estar detrás de los ataques APT?", opciones: ["Gobiernos o actores estatales", "Hackers adolescentes", "Ciberdelincuentes comunes", "Empleados descontentos"], correcta: 0, explicacion: "APT son ataques sofisticados de actores estatales o grupos avanzados." }
+            ],
+            // Fileless
+            14: [
+                { texto: "¿Por qué es difícil detectar un malware fileless?", opciones: ["Opera solo en memoria sin dejar archivos", "Usa encriptación", "Cambia de nombre", "Se esconde en USB"], correcta: 0, explicacion: "Fileless malware vive en RAM y no deja huella en disco." }
+            ],
+            // Cryptojacker
+            15: [
+                { texto: "¿Qué recurso consume el cryptojacker?", opciones: ["CPU/GPU para minar criptomonedas", "Disco duro", "Memoria RAM", "Ancho de banda"], correcta: 0, explicacion: "Cryptojacking usa el procesador para minar criptomonedas." }
+            ],
+            // Zero-Day
+            16: [
+                { texto: "¿Qué es una vulnerabilidad zero-day?", opciones: ["Desconocida por el fabricante", "Muy antigua", "Fácil de explotar", "Solo afecta Mac"], correcta: 0, explicacion: "Zero-day significa que el fabricante tiene 0 días para parchearla." }
+            ],
+            // Polimórfico
+            17: [
+                { texto: "¿Cómo evade la detección un malware polimórfico?", opciones: ["Cambia su firma en cada infección", "Se esconde en el BIOS", "Usa rootkit", "Encripta archivos"], correcta: 0, explicacion: "Polimórfico cambia su código manteniendo la función." }
+            ],
+            // Metamórfico
+            18: [
+                { texto: "¿En qué se diferencia el malware metamórfico del polimórfico?", opciones: ["Reescribe completamente su código", "Cambia solo algunas partes", "Es más lento", "Es más fácil de detectar"], correcta: 0, explicacion: "Metamórfico reescribe todo su código, no solo la firma." }
+            ]
+        };
+        
+        function obtenerPreguntaUnica(malware) {
+            const preguntas = PREGUNTAS_POR_MALWARE[malware.id] || PREGUNTAS_POR_MALWARE[1];
+            // Seleccionar pregunta aleatoria del banco
+            const idx = Math.floor(Math.random() * preguntas.length);
+            return preguntas[idx];
+        }
         
         // Estado del juego
         let gameState = {
@@ -115,52 +249,9 @@
             puntaje: 0,
             vidas: 3,
             aciertos: 0,
-            nivel: 1
+            nivel: 1,
+            nivelActual: 1
         };
-        
-        // Base de datos de malware
-        const MALWARE_DB = [
-            { id: 1, name: "VIRUS", icon: "🦠", desc: "Se adjunta a archivos limpios y se propaga al ejecutarlos.", chars: ["Se pega a otros archivos", "Necesita intervención humana"], level: 1 },
-            { id: 2, name: "TROYANO", icon: "🐴", desc: "Se disfraza de software legítimo para engañarte.", chars: ["Se disfraza de algo bueno", "Crea puertas traseras"], level: 1 },
-            { id: 3, name: "RANSOMWARE", icon: "💰", desc: "Secuestra tus archivos y pide rescate económico.", chars: ["Encripta archivos", "Pide rescate"], level: 2 },
-            { id: 4, name: "SPYWARE", icon: "👁️", desc: "Espía tus actividades sin que lo notes.", chars: ["Espía en secreto", "Roba contraseñas"], level: 1 },
-            { id: 5, name: "GUSANO", icon: "🐛", desc: "Se replica automáticamente por la red.", chars: ["Se propaga solo", "No necesita archivo"], level: 2 },
-            { id: 6, name: "KEYLOGGER", icon: "⌨️", desc: "Registra cada tecla que presionas.", chars: ["Graba tecleo", "Roba credenciales"], level: 2 },
-            { id: 7, name: "ROOTKIT", icon: "🎭", desc: "Se oculta en niveles profundos del sistema.", chars: ["Se esconde del antivirus", "Opera a nivel kernel"], level: 3 },
-            { id: 8, name: "ADWARE", icon: "📢", desc: "Muestra publicidad no deseada.", chars: ["Muestra anuncios", "Viene con software gratis"], level: 1 },
-            { id: 9, name: "BOTNET", icon: "🤖", desc: "Red de dispositivos infectados controlados remotamente.", chars: ["Dispositivos esclavos", "Usado para DDoS"], level: 3 },
-            { id: 10, name: "RAT", icon: "🎮", desc: "Permite control remoto total del dispositivo.", chars: ["Control total remoto", "Acceso a cámara"], level: 3 }
-        ];
-        
-        function obtenerPregunta(malware) {
-            const preguntas = [
-                {
-                    texto: `¿Cuál es la principal característica del ${malware.name}?`,
-                    opciones: [malware.chars[0], malware.chars[1], "Es fácil de eliminar", "Solo afecta a Mac"],
-                    correcta: 0,
-                    explicacion: malware.desc
-                },
-                {
-                    texto: `¿Cómo se propaga típicamente el ${malware.name}?`,
-                    opciones: ["Por correo electrónico", "Infectando archivos", "Por redes sociales", malware.id === 5 ? "Se replica solo por la red" : "Requiere que el usuario lo ejecute"],
-                    correcta: malware.id === 5 ? 3 : 0,
-                    explicacion: malware.desc
-                },
-                {
-                    texto: `Si tu computadora tiene ${malware.name}, ¿qué señal notarías?`,
-                    opciones: [
-                        malware.id === 3 ? "Tus archivos no se abren y piden rescate" : 
-                        (malware.id === 4 ? "Tu PC está más lenta y hay programas raros" : "Aparecen ventanas emergentes"),
-                        "La pantalla se ve más brillante",
-                        "El internet es más rápido",
-                        "Se instalan actualizaciones"
-                    ],
-                    correcta: 0,
-                    explicacion: malware.desc
-                }
-            ];
-            return preguntas[malware.id % preguntas.length];
-        }
         
         function mezclarArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
@@ -170,40 +261,44 @@
             return array;
         }
         
-        // Funciones Supabase
+        function actualizarNivelPorPuntaje() {
+            let nuevoNivel = 1;
+            if (gameState.puntaje >= 1000) nuevoNivel = 5;
+            else if (gameState.puntaje >= 600) nuevoNivel = 4;
+            else if (gameState.puntaje >= 300) nuevoNivel = 3;
+            else if (gameState.puntaje >= 100) nuevoNivel = 2;
+            else nuevoNivel = 1;
+            
+            if (nuevoNivel !== gameState.nivelActual) {
+                gameState.nivelActual = nuevoNivel;
+                // Actualizar multiplicador basado en nivel
+                currentMultiplier = nuevoNivel;
+                actualizarUI();
+            }
+            gameState.nivel = nuevoNivel;
+        }
+        
+        // Funciones Supabase (igual que antes)
         async function obtenerOCrearJugador(nombre) {
             try {
-                // Primero buscar si existe
                 const { data: existing, error: searchError } = await supabaseClient
                     .from('jugadores')
                     .select('*')
                     .eq('nombre', nombre)
                     .maybeSingle();
                 
-                if (searchError) {
-                    console.error("Error búsqueda:", searchError);
-                    return { success: false, error: searchError };
-                }
+                if (searchError) return { success: false, error: searchError };
+                if (existing) return { success: true, player: existing, isNew: false };
                 
-                if (existing) {
-                    return { success: true, player: existing, isNew: false };
-                }
-                
-                // Si no existe, crear nuevo
                 const { data: newPlayer, error: insertError } = await supabaseClient
                     .from('jugadores')
                     .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0 })
                     .select()
                     .single();
                 
-                if (insertError) {
-                    console.error("Error creación:", insertError);
-                    return { success: false, error: insertError };
-                }
-                
+                if (insertError) return { success: false, error: insertError };
                 return { success: true, player: newPlayer, isNew: true };
             } catch (e) {
-                console.error("Excepción:", e);
                 return { success: false, error: e };
             }
         }
@@ -215,23 +310,18 @@
                 .eq('jugador_id', jugadorId)
                 .order('puntaje', { ascending: false })
                 .limit(1);
-            
             if (error || !data || data.length === 0) return 0;
             return data[0].puntaje;
         }
         
         async function guardarPartida(jugadorId, puntaje, nivel, correctas, incorrectas) {
-            const { error } = await supabaseClient
-                .from('partidas')
-                .insert({
-                    jugador_id: jugadorId,
-                    puntaje: puntaje,
-                    nivel_alcanzado: nivel,
-                    respuestas_correctas: correctas,
-                    respuestas_incorrectas: incorrectas
-                });
-            
-            if (error) console.error("Error guardando partida:", error);
+            await supabaseClient.from('partidas').insert({
+                jugador_id: jugadorId,
+                puntaje: puntaje,
+                nivel_alcanzado: nivel,
+                respuestas_correctas: correctas,
+                respuestas_incorrectas: incorrectas
+            });
             
             const { data: existing } = await supabaseClient
                 .from('jugadores')
@@ -259,18 +349,8 @@
                 .limit(10);
             
             const rankingDiv = document.getElementById('rankingList');
-            const rankingStatus = document.getElementById('rankingStatus');
-            
-            if (error) {
-                console.error("Error ranking:", error);
-                rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;" class="error-text">Error cargando ranking</div>';
-                rankingStatus.innerHTML = '❌ Error: ' + error.message.substring(0, 60);
-                return;
-            }
-            
-            if (!data || data.length === 0) {
+            if (error || !data || data.length === 0) {
                 rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Sin jugadores aún. ¡Sé el primero!</div>';
-                rankingStatus.innerHTML = '📊 Esperando primeros jugadores...';
                 return;
             }
             
@@ -280,25 +360,34 @@
                     <div class="ranking-score">${j.puntaje_total} pts</div>
                 </div>
             `).join('');
-            rankingStatus.innerHTML = '✅ Ranking actualizado';
         }
         
-        // Lógica del juego (igual que antes)
+        // Lógica del juego principal
         function actualizarUI() {
             document.getElementById('scoreValue').textContent = gameState.puntaje;
             document.getElementById('correctCount').textContent = gameState.aciertos;
+            document.getElementById('multiplier').textContent = `${currentMultiplier}x`;
+            
             const healthPercent = (gameState.vidas / 3) * 100;
             const healthFill = document.getElementById('healthFill');
             healthFill.style.width = `${healthPercent}%`;
             if (healthPercent < 30) healthFill.style.background = "linear-gradient(90deg, #EF4444, #F97316)";
             else healthFill.style.background = "linear-gradient(90deg, #10B981, #06B6D4)";
             
-            let nivel = 1;
-            if (gameState.puntaje >= 500) nivel = 3;
-            else if (gameState.puntaje >= 200) nivel = 2;
-            gameState.nivel = nivel;
-            const niveles = {1: "MALWARE BÁSICO", 2: "MALWARE PELIGROSO", 3: "AMENAZAS AVANZADAS"};
-            document.getElementById('levelText').innerHTML = `🎯 NIVEL ${nivel}: ${niveles[nivel]}`;
+            const nivelesTexto = {1: "RECLUTA 🪖", 2: "ESPECIALISTA 🛡️", 3: "EXPERTO 🎯", 4: "MAESTRO 👑", 5: "LEYENDA ⚡"};
+            document.getElementById('levelText').innerHTML = `🎯 NIVEL ${gameState.nivelActual}: ${nivelesTexto[gameState.nivelActual] || "RECLUTA"}`;
+            
+            // Actualizar indicador de niveles
+            const progressDiv = document.getElementById('levelProgress');
+            if (progressDiv) {
+                progressDiv.innerHTML = '';
+                for (let i = 1; i <= 5; i++) {
+                    let status = '';
+                    if (gameState.nivelActual > i) status = 'completed';
+                    else if (gameState.nivelActual === i) status = 'active';
+                    progressDiv.innerHTML += `<div class="level-dot ${status}">${i}</div>`;
+                }
+            }
         }
         
         function cargarSiguienteMalware() {
@@ -308,7 +397,7 @@
             }
             
             gameState.malwareActual = gameState.malwaresPendientes.shift();
-            gameState.preguntaActual = obtenerPregunta(gameState.malwareActual);
+            gameState.preguntaActual = obtenerPreguntaUnica(gameState.malwareActual);
             gameState.respondido = false;
             
             renderizarPregunta();
@@ -319,173 +408,9 @@
             const m = gameState.malwareActual;
             const q = gameState.preguntaActual;
             
+            const nivelColor = {1: "#94A3B8", 2: "#22C55E", 3: "#F59E0B", 4: "#EF4444", 5: "#A855F7"};
+            
             document.getElementById('challengeArea').innerHTML = `
                 <div class="malware-card">
-                    <div class="malware-icon">${m.icon}</div>
-                    <div class="malware-name">${m.name}</div>
-                    <div class="malware-desc">${m.desc}</div>
-                </div>
-                <div class="question-text">❓ ${q.texto}</div>
-                <div class="options-grid" id="optionsGrid">
-                    ${q.opciones.map((opt, idx) => `<button class="option-btn" data-idx="${idx}">${String.fromCharCode(65+idx)}. ${opt}</button>`).join('')}
-                </div>
-                <div id="feedbackArea" style="display:none;"></div>
-            `;
-            
-            document.querySelectorAll('.option-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
-                });
-            });
-        }
-        
-        function procesarRespuesta(seleccion) {
-            gameState.respondido = true;
-            const esCorrecta = (seleccion === gameState.preguntaActual.correcta);
-            const feedbackDiv = document.getElementById('feedbackArea');
-            feedbackDiv.style.display = 'block';
-            
-            if (esCorrecta) {
-                const puntos = 10 * gameState.malwareActual.level;
-                gameState.puntaje += puntos;
-                gameState.aciertos++;
-                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #10B981; background:rgba(16,185,129,0.1); border-radius:16px;">
-                    ✅ <strong>¡CORRECTO!</strong> +${puntos} puntos<br>📚 ${gameState.preguntaActual.explicacion}
-                </div>`;
-            } else {
-                gameState.vidas--;
-                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #EF4444; background:rgba(239,68,68,0.1); border-radius:16px;">
-                    ❌ <strong>INCORRECTO</strong> -1 vida<br>📚 Respuesta correcta: ${gameState.preguntaActual.opciones[gameState.preguntaActual.correcta]}<br>💡 ${gameState.malwareActual.desc}
-                </div>`;
-            }
-            
-            document.querySelectorAll('.option-btn').forEach((btn, idx) => {
-                btn.disabled = true;
-                if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
-                if (idx === seleccion && idx !== gameState.preguntaActual.correcta) btn.classList.add('incorrect');
-            });
-            
-            actualizarUI();
-            
-            if (gameState.vidas <= 0) {
-                finalizarJuego(false);
-            } else {
-                document.getElementById('nextBtn').disabled = false;
-            }
-        }
-        
-        async function finalizarJuego(victoria) {
-            if (currentPlayer) {
-                const incorrectas = (gameState.aciertos + (3 - gameState.vidas)) - gameState.aciertos;
-                await guardarPartida(currentPlayer.id, gameState.puntaje, gameState.nivel, gameState.aciertos, incorrectas);
-                const best = await obtenerMejorPuntaje(currentPlayer.id);
-                document.getElementById('personalBest').textContent = best;
-                await cargarRanking();
-            }
-            
-            const finalScore = document.getElementById('finalScoreDisplay');
-            const messageDisplay = document.getElementById('messageDisplay');
-            finalScore.textContent = gameState.puntaje;
-            
-            let mensaje = "";
-            if (victoria) {
-                mensaje = "🎉 ¡MISIÓN COMPLETADA! Has identificado todos los malwares. ¡Eres un guardián de la ciberseguridad! 🎉";
-            } else if (gameState.puntaje >= 300) {
-                mensaje = "🏆 ¡ASOMBROSO! Eres un experto en malware. 🏆";
-            } else if (gameState.puntaje >= 150) {
-                mensaje = "🛡️ ¡Muy bien! Repasa los tipos de nivel 2 y 3.";
-            } else {
-                mensaje = "💪 No te rindas. Estudia los tipos de malware y vuélvelo a intentar.";
-            }
-            messageDisplay.textContent = mensaje;
-            document.getElementById('gameOverlay').classList.add('show');
-        }
-        
-        function iniciarNuevaPartida() {
-            gameState.malwaresPendientes = mezclarArray([...MALWARE_DB]);
-            gameState.puntaje = 0;
-            gameState.vidas = 3;
-            gameState.aciertos = 0;
-            gameState.respondido = false;
-            gameState.nivel = 1;
-            
-            actualizarUI();
-            document.getElementById('gameOverlay').classList.remove('show');
-            cargarSiguienteMalware();
-        }
-        
-        // Eventos y login
-        async function iniciarSesion() {
-            const nombre = document.getElementById('playerName').value.trim();
-            if (!nombre) { alert("Ingresa un nombre"); return; }
-            if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
-            
-            const statusDiv = document.getElementById('connectionStatus');
-            statusDiv.innerHTML = "🔄 Verificando jugador...";
-            
-            const result = await obtenerOCrearJugador(nombre);
-            if (!result.success) {
-                let errorMsg = result.error?.message || "Error desconocido";
-                if (errorMsg.includes("row-level security policy")) {
-                    errorMsg = "Error de permisos en Supabase. Debes deshabilitar RLS en la tabla 'jugadores'.";
-                }
-                alert("Error: " + errorMsg);
-                statusDiv.innerHTML = "❌ Error de conexión. Revisa la consola.";
-                return;
-            }
-            
-            currentPlayer = result.player;
-            document.getElementById('displayName').textContent = currentPlayer.nombre;
-            const best = await obtenerMejorPuntaje(currentPlayer.id);
-            document.getElementById('personalBest').textContent = best;
-            
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('gameContent').style.display = 'block';
-            
-            iniciarNuevaPartida();
-            cargarRanking();
-            statusDiv.innerHTML = "✅ Conectado a Supabase";
-        }
-        
-        function cerrarSesion() {
-            currentPlayer = null;
-            document.getElementById('loginSection').style.display = 'block';
-            document.getElementById('gameContent').style.display = 'none';
-            document.getElementById('playerName').value = '';
-        }
-        
-        // Inicializar
-        async function init() {
-            const statusDiv = document.getElementById('connectionStatus');
-            const { error } = await supabaseClient.from('jugadores').select('count', { count: 'exact', head: true });
-            
-            if (error) {
-                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 60)}`;
-                console.error("Conexión fallida:", error);
-                if (error.message.includes("row-level security")) {
-                    statusDiv.innerHTML = "⚠️ Necesitas deshabilitar RLS en Supabase (tabla jugadores)";
-                }
-            } else {
-                statusDiv.innerHTML = '✅ Conectado a Supabase';
-                await cargarRanking();
-            }
-        }
-        
-        // Event listeners
-        document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
-        document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            if (gameState.respondido && gameState.vidas > 0) cargarSiguienteMalware();
-        });
-        document.getElementById('playAgainBtn').addEventListener('click', () => {
-            iniciarNuevaPartida();
-        });
-        document.getElementById('playerName').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') iniciarSesion();
-        });
-        
-        init();
-    })();
-</script>
-</body>
-</html>
+                    <div class="malware-icon" style="border-color: ${nivelColor[m.level]}">${m.icon}</div>
+                    <div

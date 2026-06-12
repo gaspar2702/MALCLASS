@@ -95,7 +95,7 @@
 
 <script>
     // ============================================
-    // CONFIGURACIÓN - CLAVE CORREGIDA
+    // CONFIGURACIÓN - CLAVE CORRECTA (funciona)
     // ============================================
     const SUPABASE_URL = 'https://kpywveceznobreogzjbg.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweXd2ZWNlem5vYnJlb2d6amJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTM1ODksImV4cCI6MjA5NjA4OTU4OX0._QPk3rigfRIw3QYGtNktlm6XN6MS4z_PewfY1GJffW0';
@@ -251,7 +251,13 @@
         
         const rankingDiv = document.getElementById('rankingList');
         
-        if (error || !data || data.length === 0) {
+        if (error) {
+            console.error("Error ranking:", error);
+            rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Error cargando ranking</div>';
+            return;
+        }
+        
+        if (!data || data.length === 0) {
             rankingDiv.innerHTML = '<div style="text-align:center; padding:20px;">Sin jugadores aún. ¡Sé el primero!</div>';
             return;
         }
@@ -426,17 +432,15 @@
         document.getElementById('playerName').value = '';
     }
     
-    // Probar conexión al cargar
-    async function testConexion() {
+    // Probar conexión y cargar ranking al inicio
+    async function init() {
         const statusDiv = document.getElementById('statusText');
         const { error } = await supabase.from('jugadores').select('count', { count: 'exact', head: true });
         
         if (error) {
-            statusDiv.innerHTML = `❌ Error: ${error.message.substring(0, 60)}`;
-            console.error("Conexión fallida:", error);
+            statusDiv.innerHTML = `⚠️ Modo local: ${error.message.substring(0, 50)}`;
         } else {
             statusDiv.innerHTML = '✅ Conectado a Supabase';
-            console.log("Conexión exitosa!");
             await cargarRanking();
         }
     }
@@ -454,8 +458,7 @@
         if (e.key === 'Enter') iniciarSesion();
     });
     
-    // Iniciar
-    testConexion();
+    init();
 </script>
 </body>
 </html>

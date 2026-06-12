@@ -413,4 +413,160 @@
             document.getElementById('challengeArea').innerHTML = `
                 <div class="malware-card">
                     <div class="malware-icon" style="border-color: ${nivelColor[m.level]}">${m.icon}</div>
-                    <div
+                    <div class="malware-name" style="color: ${nivelColor[m.level]}">${m.name}</div>
+                    <div class="malware-desc">${m.desc}<br><small style="color: ${nivelColor[m.level]}">⭐ Nivel ${m.level} · ${m.category}</small></div>
+                </div>
+                <div class="question-text">❓ ${q.texto}</div>
+                <div class="options-grid" id="optionsGrid">
+                    ${q.opciones.map((opt, idx) => `<button class="option-btn" data-idx="${idx}">${String.fromCharCode(65+idx)}. ${opt}</button>`).join('')}
+                </div>
+                <div id="feedbackArea" style="display:none;"></div>
+            `;
+            
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
+                });
+            });
+        }
+        
+        function procesarRespuesta(seleccion) {
+            gameState.respondido = true;
+            const esCorrecta = (seleccion === gameState.preguntaActual.correcta);
+            const feedbackDiv = document.getElementById('feedbackArea');
+            feedbackDiv.style.display = 'block';
+            
+            if (esCorrecta) {
+                correctStreak++;
+                if (correctStreak >= 3) currentMultiplier = Math.min(currentMultiplier + 1, 5);
+                const puntos = gameState.malwareActual.points * currentMultiplier;
+                gameState.puntaje += puntos;
+                gameState.aciertos++;
+                actualizarNivelPorPuntaje();
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #10B981; background:rgba(16,185,129,0.1); border-radius:16px;">
+                    ✅ <strong>¡CORRECTO!</strong> +${puntos} puntos (x${currentMultiplier})<br>📚 ${gameState.preguntaActual.explicacion}
+                </div>`;
+            } else {
+                correctStreak = 0;
+                currentMultiplier = 1;
+                gameState.vidas--;
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #EF4444; background:rgba(239,68,68,0.1); border-radius:16px;">
+                    ❌ <strong>INCORRECTO</strong> -1 vida<br>📚 Respuesta correcta: ${gameState.preguntaActual.opciones[gameState.preguntaActual.correcta]}<br>💡 ${gameState.malwareActual.desc}
+                </div>`;
+            }
+            
+            document.querySelectorAll('.option-btn').forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
+                if (idx === seleccion && idx !== gameState.preguntaActual.correcta) btn.classList.add('incorrect');
+            });
+            
+            actualizarUI();
+            
+            if (gameState.vidas <= 0) {
+                finalizarJuego(false);
+            } else {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function finalizarJuego(victoria) {
+            if (currentPlayer) {
+                const incorrectas = (gameState.aciertos + (3 - gameState.vidas)) - gameState.aciertos;
+                await guardarPartida(currentPlayer.id, gameState.puntaje, gameState.nivelActual, gameState.aciertos, incorrectas);
+                const best = await obtenerMejorPuntaje(currentPlayer.id);
+                document.getElementById('personalBest').textContent = best;
+                await cargarRanking();
+            }
+            
+            document.getElementById('finalScoreDisplay').textContent = gameState.puntaje;
+            document.getElementById('gameOverTitle').innerHTML = victoria ? "🎉 ¡VICTORIA! 🎉" : "💀 MISIÓN FALLIDA 💀";
+            
+            let mensaje = "";
+            if (victoria) mensaje = "🎉 ¡MISIÓN COMPLETADA! Has derrotado a todos los malwares. ¡Eres una leyenda! 🎉";
+            else if (gameState.puntaje >= 800) mensaje = "🏆 ¡INCREÍBLE! Casi completas la misión. ¡Eres un maestro! 🏆";
+            else if (gameState.puntaje >= 400) mensaje = "🛡️ ¡Muy bien! Sigue así para alcanzar niveles más altos.";
+            else mensaje = "💪 No te rindas. Cada intento te hace más fuerte. ¡Vuelve a intentarlo!";
+            
+            document.getElementById('messageDisplay').innerHTML = mensaje;
+            document.getElementById('gameOverlay').classList.add('show');
+        }
+        
+        function iniciarNuevaPartida() {
+            // Filtrar malwares por nivel (todos disponibles, pero ordenados)
+            let todosMalwares = [...MALWARE_DB];
+            todosMalwares = mezclarArray(todosMalwares);
+            
+            gameState.malwaresPendientes = todosMalwares;
+            gameState.puntaje = 0;
+            gameState.vidas = 3;
+            gameState.aciertos = 0;
+            gameState.respondido = false;
+            gameState.nivelActual = 1;
+            currentMultiplier = 1;
+            correctStreak = 0;
+            
+            actualizarUI();
+            document.getElementById('gameOverlay').classList.remove('show');
+            cargarSiguienteMalware();
+        }
+        
+        // Eventos y login
+        async function iniciarSesion() {
+            const nombre = document.getElementById('playerName').value.trim();
+            if (!nombre) { alert("Ingresa un nombre"); return; }
+            if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
+            
+            const result = await obtenerOCrearJugador(nombre);
+            if (!result.success) {
+                alert("Error: " + (result.error?.message || "No se pudo conectar"));
+                return;
+            }
+            
+            currentPlayer = result.player;
+            document.getElementById('displayName').textContent = currentPlayer.nombre;
+            const best = await obtenerMejorPuntaje(currentPlayer.id);
+            document.getElementById('personalBest').textContent = best;
+            
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('gameContent').style.display = 'block';
+            
+            iniciarNuevaPartida();
+            cargarRanking();
+        }
+        
+        function cerrarSesion() {
+            currentPlayer = null;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('gameContent').style.display = 'none';
+            document.getElementById('playerName').value = '';
+        }
+        
+        async function init() {
+            const statusDiv = document.getElementById('connectionStatus');
+            const { error } = await supabaseClient.from('jugadores').select('count', { count: 'exact', head: true });
+            if (error) {
+                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 60)}`;
+            } else {
+                statusDiv.innerHTML = '✅ Conectado a Supabase';
+                await cargarRanking();
+            }
+        }
+        
+        document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
+        document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (gameState.respondido && gameState.vidas > 0) cargarSiguienteMalware();
+        });
+        document.getElementById('playAgainBtn').addEventListener('click', () => {
+            iniciarNuevaPartida();
+        });
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') iniciarSesion();
+        });
+        
+        init();
+    })();
+</script>
+</body>
+</html>

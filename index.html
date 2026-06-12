@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🎓 MISIÓN ANTIMALWARE | Cybersecurity Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="game-container">
+    <!-- Panel izquierdo - Juego -->
+    <div class="game-panel" id="gamePanel">
+        <!-- Pantalla de login -->
+        <div id="loginSection">
+            <div class="login-area">
+                <h2>🎮 Misión Antimalware</h2>
+                <p class="login-subtitle">Demuestra lo que aprendiste y compite globalmente</p>
+                <input type="text" id="playerName" placeholder="Ej: CiberGuardian07" maxlength="30">
+                <button id="startGameBtn">🚀 Comenzar Misión</button>
+                <p class="login-footer">Los puntajes se guardan automáticamente en la nube</p>
+            </div>
+        </div>
+
+        <!-- Pantalla de juego (oculta inicialmente) -->
+        <div id="gameContent" style="display:none;">
+            <div class="user-info" id="userInfo">
+                <span>👤 <strong id="displayName">---</strong></span>
+                <span>🏆 Mejor puntaje: <strong id="personalBest">0</strong></span>
+                <button id="logoutBtn" class="btn-logout">Salir</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat"><span>🎯 PUNTOS:</span> <span id="scoreValue">0</span></div>
+                <div class="stat">
+                    <span>❤️ VIDAS:</span>
+                    <div class="health-bar"><div class="health-fill" id="healthFill" style="width: 100%"></div></div>
+                </div>
+                <div class="stat"><span>✅ ACIERTOS:</span> <span id="correctCount">0</span></div>
+            </div>
+
+            <div class="level-badge"><span id="levelText">🎯 NIVEL 1: MALWARE BÁSICO</span></div>
+
+            <div id="challengeArea"></div>
+            <button class="next-btn" id="nextBtn" disabled>▶ SIGUIENTE MALWARE</button>
+        </div>
+    </div>
+
+    <!-- Panel derecho - Ranking -->
+    <div class="ranking-panel">
+        <div class="ranking-title">🏆 RANKING GLOBAL 🏆</div>
+        <div id="rankingList"><div class="loading-text">Cargando ranking...</div></div>
+        <div class="ranking-footer" id="statusText">🔄 Conectando a Supabase...</div>
+    </div>
+</div>
+
+<!-- Modal de Game Over -->
+<div class="game-overlay" id="gameOverlay">
+    <div class="game-over-card">
+        <h2>💀 MISIÓN FALLIDA 💀</h2>
+        <div class="final-score" id="finalScoreDisplay">0</div>
+        <p id="messageDisplay"></p>
+        <button class="next-btn" id="playAgainBtn">🎮 JUGAR DE NUEVO</button>
+    </div>
+</div>
+
+<!-- Carga de módulos JavaScript -->
+<script src="js/config.js"></script>
+<script src="js/database.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/game-core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/ranking.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

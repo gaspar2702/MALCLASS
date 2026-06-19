@@ -367,3 +367,49 @@
                 if (existing) return { success: true, player: existing, isNew: false };
                 
                 const { data: newPlayer, error: insertError } = await supabaseClient
+                    .from('jugadores')
+                    .insert({ 
+                        nombre: nombre, 
+                        puntaje_total: 0, 
+                        partidas_jugadas: 0, 
+                        aciertos_totales: 0,
+                        mejor_puntaje: 0 
+                    })
+                    .select()
+                    .single();
+                
+                if (insertError) return { success: false, error: insertError };
+                return { success: true, player: newPlayer, isNew: true };
+            } catch (e) {
+                return { success: false, error: e };
+            }
+        }
+        
+        async function obtenerMejorPuntaje(jugadorId) {
+            const { data, error } = await supabaseClient
+                .from('partidas')
+                .select('puntaje')
+                .eq('jugador_id', jugadorId)
+                .order('puntaje', { ascending: false })
+                .limit(1);
+            
+            if (error || !data || data.length === 0) return 0;
+            return data[0].puntaje;
+        }
+        
+        async function guardarPartida(jugadorId, puntaje, nivel, correctas, incorrectas) {
+            // Guardar la partida en el historial
+            const { error: partidaError } = await supabaseClient
+                .from('partidas')
+                .insert({
+                    jugador_id: jugadorId,
+                    puntaje: puntaje,
+                    nivel_alcanzado: nivel,
+                    respuestas_correctas: correctas,
+                    respuestas_incorrectas: incorrectas
+                });
+            
+            if (partidaError) console.error("Error guardando partida:", partidaError);
+            
+            // Obtener el mejor puntaje actual del jugador
+            const mejorActual =

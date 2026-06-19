@@ -157,7 +157,7 @@
         let esNuevoRecord = false;
         
         // ============================================
-        // MALWARE DATABASE
+        // MALWARE DATABASE (18 tipos)
         // ============================================
         const MALWARE_DB = [
             { id: 1, name: "VIRUS", icon: "🦠", desc: "Programa que se replica insertando copias de sí mismo en otros programas.", category: "Infección", level: 1, points: 10 },
@@ -367,17 +367,3 @@
                 if (existing) return { success: true, player: existing, isNew: false };
                 
                 const { data: newPlayer, error: insertError } = await supabaseClient
-                    .from('jugadores')
-                    .insert({ nombre: nombre, puntaje_total: 0, partidas_jugadas: 0, aciertos_totales: 0, mejor_puntaje: 0 })
-                    .select()
-                    .single();
-                
-                if (insertError) return { success: false, error: insertError };
-                return { success: true, player: newPlayer, isNew: true };
-            } catch (e) {
-                return { success: false, error: e };
-            }
-        }
-        
-        async function obtenerMejorPuntaje(jugadorId) {
-            const { data, error }

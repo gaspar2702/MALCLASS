@@ -412,4 +412,335 @@
             if (partidaError) console.error("Error guardando partida:", partidaError);
             
             // Obtener el mejor puntaje actual del jugador
-            const mejorActual =
+            const mejorActual = await obtenerMejorPuntaje(jugadorId);
+            
+            // Solo actualizar si el nuevo puntaje es mayor
+            if (puntaje > mejorActual) {
+                const { error: updateError } = await supabaseClient
+                    .from('jugadores')
+                    .update({ 
+                        mejor_puntaje: puntaje,
+                        puntaje_total: puntaje  // También actualizamos puntaje_total para el ranking
+                    })
+                    .eq('id', jugadorId);
+                
+                if (updateError) console.error("Error actualizando récord:", updateError);
+                return true; // Nuevo récord
+            }
+            
+            return false; // No superó el récord
+        }
+        
+        async function cargarRanking() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('jugadores')
+                    .select('nombre, puntaje_total')
+                    .order('puntaje_total', { ascending: false })
+                    .limit(10);
+                
+                const rankingDiv = document.getElementById('rankingList');
+                const rankingStatus = document.getElementById('rankingStatus');
+                
+                if (error) {
+                    console.error("Error ranking:", error);
+                    rankingDiv.innerHTML = '<div style="text-align:center; padding:20px; color:#EF4444;">Error cargando ranking</div>';
+                    rankingStatus.innerHTML = '❌ Error: ' + error.message.substring(0, 50);
+                    return;
+                }
+                
+                if (!data || data.length === 0) {
+                    rankingDiv.innerHTML = '<div style="text-align:center; padding:20px; color:#64748B;">Sin jugadores aún. ¡Sé el primero!</div>';
+                    rankingStatus.innerHTML = '📊 Esperando primeros jugadores...';
+                    return;
+                }
+                
+                rankingDiv.innerHTML = data.map((j, idx) => `
+                    <div class="ranking-item">
+                        <div class="nombre">${idx === 0 ? '🏆' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '📌'} ${j.nombre.substring(0, 20)}</div>
+                        <div class="puntos">${j.puntaje_total} pts</div>
+                    </div>
+                `).join('');
+                rankingStatus.innerHTML = '✅ Ranking actualizado';
+            } catch (e) {
+                console.error("Excepción ranking:", e);
+                document.getElementById('rankingList').innerHTML = '<div style="text-align:center; padding:20px; color:#EF4444;">Error de conexión</div>';
+            }
+        }
+        
+        // ============================================
+        // LÓGICA DEL JUEGO
+        // ============================================
+        function actualizarUI() {
+            document.getElementById('scoreValue').textContent = gameState.puntaje;
+            document.getElementById('correctCount').textContent = gameState.aciertos;
+            document.getElementById('multiplier').textContent = `${currentMultiplier}x`;
+            
+            const healthPercent = (gameState.vidas / 3) * 100;
+            const healthFill = document.getElementById('healthFill');
+            healthFill.style.width = `${healthPercent}%`;
+            if (healthPercent < 30) healthFill.style.background = "linear-gradient(90deg, #EF4444, #F97316)";
+            else healthFill.style.background = "linear-gradient(90deg, #10B981, #06B6D4)";
+            
+            // Calcular nivel
+            let nivel = 1;
+            if (gameState.puntaje >= 1000) nivel = 5;
+            else if (gameState.puntaje >= 600) nivel = 4;
+            else if (gameState.puntaje >= 300) nivel = 3;
+            else if (gameState.puntaje >= 100) nivel = 2;
+            gameState.nivelActual = nivel;
+            
+            const nivelesTexto = {1: "RECLUTA 🪖", 2: "ESPECIALISTA 🛡️", 3: "EXPERTO 🎯", 4: "MAESTRO 👑", 5: "LEYENDA ⚡"};
+            document.getElementById('levelText').innerHTML = `🎯 NIVEL ${nivel}: ${nivelesTexto[nivel]}`;
+            
+            // Actualizar dots de niveles
+            const progressDiv = document.getElementById('levelProgress');
+            if (progressDiv) {
+                progressDiv.innerHTML = '';
+                for (let i = 1; i <= 5; i++) {
+                    let status = '';
+                    if (gameState.nivelActual > i) status = 'completed';
+                    else if (gameState.nivelActual === i) status = 'active';
+                    progressDiv.innerHTML += `<div class="level-dot ${status}">${i}</div>`;
+                }
+            }
+        }
+        
+        function cargarSiguienteMalware() {
+            if (gameState.malwaresPendientes.length === 0) {
+                finalizarJuego(true);
+                return;
+            }
+            
+            gameState.malwareActual = gameState.malwaresPendientes.shift();
+            gameState.preguntaActual = mezclarOpciones(obtenerPreguntasParaMalware(gameState.malwareActual)[0]);
+            gameState.respondido = false;
+            
+            renderizarPregunta();
+            document.getElementById('nextBtn').disabled = true;
+            iniciarTemporizador();
+        }
+        
+        function renderizarPregunta() {
+            const m = gameState.malwareActual;
+            const q = gameState.preguntaActual;
+            
+            const nivelColor = {1: "#94A3B8", 2: "#22C55E", 3: "#F59E0B", 4: "#EF4444", 5: "#A855F7"};
+            
+            document.getElementById('challengeArea').innerHTML = `
+                <div class="malware-card">
+                    <div class="malware-icon" style="border-color: ${nivelColor[m.level]}">${m.icon}</div>
+                    <div class="malware-name" style="color: ${nivelColor[m.level]}">${m.name}</div>
+                    <div class="malware-desc">${m.desc}</div>
+                    <div class="malware-category">⭐ Nivel ${m.level} · ${m.category}</div>
+                </div>
+                <div class="question-text">❓ ${q.texto}</div>
+                <div class="options-grid" id="optionsGrid">
+                    ${q.opciones.map((opt, idx) => `<button class="option-btn" data-idx="${idx}">${String.fromCharCode(65+idx)}. ${opt}</button>`).join('')}
+                </div>
+                <div id="feedbackArea" style="display:none;"></div>
+            `;
+            
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!gameState.respondido) procesarRespuesta(parseInt(btn.dataset.idx));
+                });
+            });
+        }
+        
+        function procesarRespuesta(seleccion) {
+            if (gameState.respondido) return;
+            
+            detenerTemporizador();
+            gameState.respondido = true;
+            
+            const esCorrecta = (seleccion === gameState.preguntaActual.correcta);
+            const feedbackDiv = document.getElementById('feedbackArea');
+            feedbackDiv.style.display = 'block';
+            
+            if (esCorrecta) {
+                correctStreak++;
+                if (correctStreak >= 3) currentMultiplier = Math.min(currentMultiplier + 1, 5);
+                const puntos = gameState.malwareActual.points * currentMultiplier;
+                gameState.puntaje += puntos;
+                gameState.aciertos++;
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #10B981; background:rgba(16,185,129,0.1); border-radius:16px;">
+                    ✅ <strong>¡CORRECTO!</strong> +${puntos} puntos (x${currentMultiplier})<br>
+                    📚 ${gameState.preguntaActual.explicacion}
+                </div>`;
+            } else {
+                correctStreak = 0;
+                currentMultiplier = 1;
+                gameState.vidas--;
+                feedbackDiv.innerHTML = `<div style="padding:15px; border-left:4px solid #EF4444; background:rgba(239,68,68,0.1); border-radius:16px;">
+                    ❌ <strong>INCORRECTO</strong> -1 vida<br>
+                    📚 Respuesta correcta: ${gameState.preguntaActual.opciones[gameState.preguntaActual.correcta]}<br>
+                    💡 ${gameState.malwareActual.desc}
+                </div>`;
+            }
+            
+            document.querySelectorAll('.option-btn').forEach((btn, idx) => {
+                btn.disabled = true;
+                if (idx === gameState.preguntaActual.correcta) btn.classList.add('correct');
+                if (idx === seleccion && idx !== gameState.preguntaActual.correcta) btn.classList.add('incorrect');
+            });
+            
+            actualizarUI();
+            
+            if (gameState.vidas <= 0) {
+                finalizarJuego(false);
+            } else {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function finalizarJuego(victoria) {
+            detenerTemporizador();
+            
+            if (currentPlayer) {
+                const incorrectas = (gameState.aciertos + (3 - gameState.vidas)) - gameState.aciertos;
+                const esRecord = await guardarPartida(
+                    currentPlayer.id, 
+                    gameState.puntaje, 
+                    gameState.nivelActual, 
+                    gameState.aciertos, 
+                    incorrectas
+                );
+                
+                if (esRecord) {
+                    esNuevoRecord = true;
+                    document.getElementById('personalBest').textContent = gameState.puntaje;
+                }
+                
+                await cargarRanking();
+            }
+            
+            document.getElementById('finalScoreDisplay').textContent = gameState.puntaje;
+            
+            // Mostrar badge de récord
+            const badgeDiv = document.getElementById('recordBadge');
+            if (esNuevoRecord && gameState.puntaje > 0) {
+                badgeDiv.innerHTML = '<span class="record-badge">🏆 ¡NUEVO RÉCORD! 🏆</span>';
+            } else if (gameState.puntaje > 0) {
+                badgeDiv.innerHTML = '<span class="no-record">📊 Puntaje de esta partida</span>';
+            } else {
+                badgeDiv.innerHTML = '';
+            }
+            
+            const title = document.getElementById('gameOverTitle');
+            if (victoria) {
+                title.innerHTML = "🎉 ¡VICTORIA! 🎉";
+                title.style.color = "#10B981";
+                document.getElementById('messageDisplay').textContent = "🎉 ¡MISIÓN COMPLETADA! Has derrotado a todos los malwares. ¡Eres una leyenda! 🎉";
+            } else if (gameState.puntaje >= 800) {
+                title.innerHTML = "🏆 ¡INCREÍBLE!";
+                title.style.color = "#FDE047";
+                document.getElementById('messageDisplay').textContent = "🏆 Casi completas la misión. ¡Eres un maestro de la ciberseguridad!";
+            } else if (gameState.puntaje >= 400) {
+                title.innerHTML = "🛡️ ¡MUY BIEN!";
+                title.style.color = "#22C55E";
+                document.getElementById('messageDisplay').textContent = "🛡️ Sigue así para alcanzar niveles más altos. ¡Tienes buen conocimiento!";
+            } else if (gameState.puntaje >= 100) {
+                title.innerHTML = "📖 BUEN INTENTO";
+                title.style.color = "#F59E0B";
+                document.getElementById('messageDisplay').textContent = "📖 Repasa los tipos de malware y vuelve a intentarlo. ¡Tú puedes!";
+            } else {
+                title.innerHTML = "💪 NO TE RINDAS";
+                title.style.color = "#EF4444";
+                document.getElementById('messageDisplay').textContent = "💪 Todos empezamos desde cero. Estudia y vuélvelo a intentar.";
+            }
+            
+            document.getElementById('gameOverlay').classList.add('show');
+        }
+        
+        function iniciarNuevaPartida() {
+            esNuevoRecord = false;
+            gameState.malwaresPendientes = mezclarArray([...MALWARE_DB]);
+            gameState.puntaje = 0;
+            gameState.vidas = 3;
+            gameState.aciertos = 0;
+            gameState.respondido = false;
+            gameState.nivelActual = 1;
+            currentMultiplier = 1;
+            correctStreak = 0;
+            
+            actualizarUI();
+            document.getElementById('gameOverlay').classList.remove('show');
+            document.getElementById('recordBadge').innerHTML = '';
+            cargarSiguienteMalware();
+        }
+        
+        // ============================================
+        // LOGIN Y EVENTOS
+        // ============================================
+        async function iniciarSesion() {
+            const nombre = document.getElementById('playerName').value.trim();
+            if (!nombre) { alert("Ingresa un nombre"); return; }
+            if (nombre.length < 3) { alert("El nombre debe tener al menos 3 caracteres"); return; }
+            
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = "🔄 Verificando jugador...";
+            
+            const result = await obtenerOCrearJugador(nombre);
+            if (!result.success) {
+                alert("Error: " + (result.error?.message || "No se pudo conectar"));
+                statusDiv.innerHTML = "❌ Error de conexión";
+                return;
+            }
+            
+            currentPlayer = result.player;
+            document.getElementById('displayName').textContent = currentPlayer.nombre;
+            
+            const best = await obtenerMejorPuntaje(currentPlayer.id);
+            document.getElementById('personalBest').textContent = best;
+            
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('gameContent').style.display = 'block';
+            
+            iniciarNuevaPartida();
+            await cargarRanking();
+            statusDiv.innerHTML = "✅ Conectado a Supabase";
+        }
+        
+        function cerrarSesion() {
+            detenerTemporizador();
+            currentPlayer = null;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('gameContent').style.display = 'none';
+            document.getElementById('playerName').value = '';
+        }
+        
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+        async function init() {
+            const statusDiv = document.getElementById('connectionStatus');
+            const { error } = await supabaseClient.from('jugadores').select('count', { count: 'exact', head: true });
+            
+            if (error) {
+                statusDiv.innerHTML = `⚠️ Error: ${error.message.substring(0, 60)}`;
+                console.error("Conexión fallida:", error);
+            } else {
+                statusDiv.innerHTML = '✅ Conectado a Supabase';
+                await cargarRanking();
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('startGameBtn').addEventListener('click', iniciarSesion);
+        document.getElementById('logoutBtn').addEventListener('click', cerrarSesion);
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (gameState.respondido && gameState.vidas > 0) cargarSiguienteMalware();
+        });
+        document.getElementById('playAgainBtn').addEventListener('click', () => {
+            iniciarNuevaPartida();
+        });
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') iniciarSesion();
+        });
+        
+        init();
+    })();
+</script>
+</body>
+</html>
